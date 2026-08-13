@@ -1,0 +1,26 @@
+{
+  "name": "single-shot-try-mm6",
+  "version": "1.0.0",
+  "description": "A field manual distilled from building one: three critique cycles, a wow wave, a fresh-eyes shipping panel, ~20 specialist agents, 4,198 automated checks, and one real iPhone that disagreed with all of it. Everything below is a scar with a lesson attached.",
+  "main": "build.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Donstyles/Single-shot-try-mm6.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Donstyles/Single-shot-try-mm6/issues"
+  },
+  "homepage": "https://github.com/Donstyles/Single-shot-try-mm6#readme",
+  "dependencies": {
+    "playwright": "^1.62.1"
+  }
+}

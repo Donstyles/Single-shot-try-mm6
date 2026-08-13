@@ -105,7 +105,7 @@ Rules.recoveryMs=function(pc,weapon){ // ms between attacks in real-time
 
 // ---------- combat math ----------
 // hit chance vs AC (MM6-flavored): 2d + bonus vs AC
-Rules.hitChance=function(bonus,ac){ return clamp((15+2*bonus-ac)/(30+2*bonus),0.05,0.95); };
+Rules.hitChance=function(bonus,ac){ return clamp((20+2*bonus-ac)/(30+2*bonus),0.05,0.95); };
 Rules.attackRoll=function(rand,attacker_bonus,defender_ac){ return rand.next()<Rules.hitChance(attacker_bonus,defender_ac); };
 Rules.damageRoll=function(rand,range){ return Math.max(1,rand.roll(range.n,range.d,range.plus)); };
 Rules.monsterHit=function(rand,mAtk,pcAC){ return rand.next()<Rules.hitChance(mAtk,pcAC); };
@@ -145,6 +145,28 @@ Rules.outdoorAmbushChance=0.25;
 // ---------- conditions (poison ticks etc) ----------
 Rules.poisonTick=function(pc){ return Math.max(1,Math.round(pc.level/2)); }; // hp lost per game hour
 Rules.conditionColor=function(cond){ return cond==='ok'?palIdx(2,13):cond==='poisoned'?palIdx(13,10):cond==='diseased'?palIdx(9,9):cond==='unconscious'?palIdx(5,10):palIdx(14,8); };
+
+// ---------- buff-aware effective stats (single source; glue passes party.buffs) ----------
+Rules.effectiveAttack=function(pc,weapon,buffs){
+  let b=Rules.attackBonus(pc,weapon);
+  if(buffs&&buffs.bless) b+=buffs.bless.hitBonus||3;
+  return b;
+};
+Rules.effectiveDamage=function(pc,weapon,buffs){
+  const r=Rules.damageRange(pc,weapon);
+  if(buffs&&buffs.heroism) r.plus+=buffs.heroism.dmgBonus||3;
+  return r;
+};
+Rules.effectiveAC=function(pc,equipDefs,buffs){
+  let ac=Rules.armorClass(pc,equipDefs);
+  if(buffs&&buffs.stoneskin) ac+=buffs.stoneskin.acBonus||5;
+  return ac;
+};
+Rules.effectiveRecovery=function(pc,weapon,buffs){
+  let ms=Rules.recoveryMs(pc,weapon);
+  if(buffs&&buffs.haste) ms=Math.round(ms*0.7);
+  return ms;
+};
 
 // ---------- party creation ----------
 Rules.makePC=function(name,cls,portrait,stats){
