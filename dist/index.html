@@ -776,9 +776,11 @@ const World = {
     for(const [x,y] of camp){ const m=Monsters.make('goblin',x+0.5,y+0.5); m.group='gobcamp'; M.push(m); }
     const gw=Monsters.make('goblin_war',14.5,39.5); gw.group='gobcamp'; M.push(gw);
     const gs=Monsters.make('goblin_sham',11.5,35.0); gs.group='gobcamp'; M.push(gs);
-    // bandit camp: pickets out front, captain by the fire (leashed like all camps)
-    for(const [mid,x,y] of [['bandit',73.5,20.5],['bandit',67.5,18.5],['bandit',71.5,15.0],
-      ['bandit_bow',74.5,14.5],['bandit_bow',66.5,13.0],['bandit_boss',70.5,14.2]]){
+    // stepping stones on the quest road: singles a fresh party can take
+    M.push(Monsters.make('goblin',70.5,33.5),Monsters.make('goblin',70.5,28.5),Monsters.make('wolf',68.5,24.5));
+    // bandit camp: pickets close to the fire, captain at its heart (leashed like all camps)
+    for(const [mid,x,y] of [['bandit',72.5,18.5],['bandit',68.5,17.5],['bandit',71.5,15.0],
+      ['bandit_bow',73.5,14.5],['bandit_bow',67.5,13.5],['bandit_boss',70.5,14.2]]){
       const m=Monsters.make(mid,x,y); m.group='banditcamp'; M.push(m);
     }
     // north forest direwolves
@@ -1300,12 +1302,13 @@ Art.bakeTextures=function(){
     if(bone&&b>0.6) return palIdx(0,9+(x%2));
     return palIdx(0,clamp(2+b*(3+n*5)+g,0,11)|0);
   });
-  // 6: vault marble — dark green-black, sparse connected gold veining
+  // 6: vault marble — banded courses, rare bold veining, gold string-course
   Art.walls[6]=bakePix(64,64,(x,y)=>{
-    const v=Math.abs(N3(x/22,y/9)-0.5)<0.014;
-    const b=brickPat(x,y,64,21,2);
-    if(v&&b>0.3) return palIdx(5,7+((x>>1)+(y>>1))%3);
-    return palIdx(13,1+(b*2.5+N2(x/4,y/4)*1.6|0));
+    if(y%21<2) return palIdx(5,6+(x%2)); // gold string-courses between marble bands
+    const v=Math.abs(N3(x/26,y/11)-0.5)<0.010;
+    if(v) return palIdx(5,8+((x>>2)%2));
+    const band=(y/21|0)%2;
+    return palIdx(13,1+band+(N2(x/6,y/6)*1.4|0));
   });
   // 7: wood door — planks + iron bands + ring
   Art.walls[7]=bakePix(64,64,(x,y)=>{
@@ -1726,23 +1729,27 @@ function drawHumanoid(g,W,H,frame,p){
   if(p.weapon) drawWeapon(g,p.weapon,hx,hy,atk?0.5:0.15,(p.weapon==='staff'?28:p.weapon==='club'?15:20)*s);
   // head
   vol(g,cx,headY,headR,headR*1.12,p.skin);
-  // face: brow shadow, eye whites + pupils, nose hint, mouth — readable at melee range
-  g.fillStyle='rgba(20,12,8,0.35)'; g.fillRect(cx-headR*0.65,headY-headR*0.45,headR*1.3,headR*0.28); // brow shadow
+  // face: sockets, whites, pupils, heavy brow, nose, mouth — must read at melee range
+  g.fillStyle='rgba(20,12,8,0.45)'; g.fillRect(cx-headR*0.68,headY-headR*0.5,headR*1.36,headR*0.34); // brow band
   for(const dd of [-1,1]){
-    g.fillStyle='#e8e0d0'; g.fillRect(cx+dd*headR*0.42-1.8,headY-headR*0.18,3.6,2.6);
-    g.fillStyle='#181008'; g.fillRect(cx+dd*headR*0.42-0.9,headY-headR*0.14,1.9,1.9);
+    g.fillStyle='rgba(15,10,6,0.5)'; g.beginPath(); g.ellipse(cx+dd*headR*0.4,headY-headR*0.08,headR*0.26,headR*0.2,0,0,7); g.fill(); // socket
+    g.fillStyle='#ece4d4'; g.fillRect(cx+dd*headR*0.4-2.3,headY-headR*0.18,4.6,3.2);
+    g.fillStyle='#100c08'; g.fillRect(cx+dd*headR*0.4-1.1,headY-headR*0.14,2.3,2.4);
   }
-  g.fillStyle='rgba(20,12,8,0.4)'; g.fillRect(cx-0.8,headY+headR*0.1,1.6,headR*0.28); // nose
-  g.fillStyle='#3a1410'; g.fillRect(cx-headR*0.3,headY+headR*0.52,headR*0.6,1.8);     // mouth
-  if(frame==='attack'){ g.fillStyle='#200c0a'; g.fillRect(cx-headR*0.28,headY+headR*0.44,headR*0.56,headR*0.3);
-    g.fillStyle='#e8e4d0'; g.fillRect(cx-headR*0.24,headY+headR*0.44,headR*0.48,1.4); } // war-cry teeth
-  if(p.eyesGlow){ g.fillStyle=p.eyesGlow; g.fillRect(cx-headR*0.5,headY-headR*0.2,3,3); g.fillRect(cx+headR*0.26,headY-headR*0.2,3,3); }
+  g.strokeStyle='rgba(20,12,8,0.55)'; g.lineWidth=2;
+  g.beginPath(); g.moveTo(cx-1,headY-headR*0.02); g.lineTo(cx-1.5,headY+headR*0.34); g.stroke(); // nose
+  g.fillStyle='#33120e'; g.fillRect(cx-headR*0.32,headY+headR*0.5,headR*0.64,2.6);   // mouth
+  if(frame==='attack'){ g.fillStyle='#1c0a08'; g.fillRect(cx-headR*0.3,headY+headR*0.42,headR*0.6,headR*0.34);
+    g.fillStyle='#ece8d4'; g.fillRect(cx-headR*0.26,headY+headR*0.42,headR*0.52,1.8); } // war-cry teeth
+  if(p.eyesGlow){ g.fillStyle=p.eyesGlow; g.fillRect(cx-headR*0.5,headY-headR*0.2,3.4,3.4); g.fillRect(cx+headR*0.26,headY-headR*0.2,3.4,3.4); }
   // headgear
   if(p.hood){ g.fillStyle=p.hood; g.beginPath(); g.arc(cx,headY-headR*0.15,headR*1.25,Math.PI*0.95,Math.PI*2.05); g.lineTo(cx+headR*1.1,headY+headR*0.9); g.lineTo(cx-headR*1.1,headY+headR*0.9); g.fill();
     g.fillStyle='rgba(8,6,4,0.55)'; g.beginPath(); g.ellipse(cx,headY,headR*0.72,headR*0.8,0,0,7); g.fill(); // hood shadow
     for(const dd of [-1,1]){ g.fillStyle=p.eyesGlow||'#e8dcc0'; g.fillRect(cx+dd*headR*0.36-1.8,headY-headR*0.12,3.6,2.8); }
     g.fillStyle='rgba(200,160,130,0.8)'; g.fillRect(cx-headR*0.2,headY+headR*0.42,headR*0.4,2); }
-  if(p.helmet){ vol(g,cx,headY-headR*0.45,headR*1.05,headR*0.7,p.helmet,{noline:1}); if(p.plume){ g.strokeStyle=p.plume; g.lineWidth=3; g.beginPath(); g.moveTo(cx,headY-headR*1.1); g.quadraticCurveTo(cx+6,headY-headR*2.1,cx+11,headY-headR*1.4); g.stroke(); } }
+  if(p.helmet){ vol(g,cx,headY-headR*0.55,headR*1.05,headR*0.62,p.helmet,{noline:1});
+    g.fillStyle=p.helmet; g.fillRect(cx-1.6,headY-headR*0.4,3.2,headR*0.6); // nasal bar — eyes stay visible
+    if(p.plume){ g.strokeStyle=p.plume; g.lineWidth=3; g.beginPath(); g.moveTo(cx,headY-headR*1.1); g.quadraticCurveTo(cx+6,headY-headR*2.1,cx+11,headY-headR*1.4); g.stroke(); } }
   if(p.hair&&!p.helmet&&!p.hood){ g.fillStyle=p.hair; g.beginPath(); g.arc(cx,headY-headR*0.35,headR*0.95,Math.PI*0.9,Math.PI*2.1); g.fill(); }
   if(p.mask){ g.fillStyle='#e8e4d0'; g.fillRect(cx-headR*0.8,headY-headR*0.5,headR*1.6,headR*0.9); g.fillStyle='#181008'; g.fillRect(cx-headR*0.45,headY-2,2,3); g.fillRect(cx+headR*0.25,headY-2,2,3); }
   if(p.crown){ g.fillStyle='#e8c860'; g.beginPath(); const cy=headY-headR*0.9;
@@ -2732,12 +2739,21 @@ const UI = {
         if(!school) school=schools[0];
         schools.forEach((s,si)=>UI.btn(46+si*84,88,80,24,SKILLS[s].name.replace(' Magic',''),()=>{ school=s; },{size:9,down:school===s}));
         E.text('SP: '+pc.sp+'/'+Rules.maxSP(pc)+'    '+SKILLS[school].name+' skill: '+(pc.skills[school]||0)+' ('+Rules.skillTier(pc.skills[school]||0)+')',46,124,{size:11,ramp:3});
+        // page art: a great school sigil inked on the right leaf
+        const gemRamp2={fire:4,air:8,water:3,earth:13,spirit:15,mind:10,body:2,light:5,dark:6}[school];
+        for(let a=0;a<64;a++){ const th2=a/64*Math.PI*2;
+          const rr=118+((a%2)?6:0);
+          E.fillRect(SCREEN_W-170+Math.cos(th2)*rr|0,250+Math.sin(th2)*rr*0.9|0,3,3,palIdx(gemRamp2,6)); }
+        for(let a=0;a<8;a++){ const th2=a/8*Math.PI*2;
+          E.fillRect(SCREEN_W-170+Math.cos(th2)*70|0,250+Math.sin(th2)*63|0,5,5,palIdx(gemRamp2,8)); }
+        E.fillRect(SCREEN_W-178,242,18,18,palIdx(gemRamp2,9));
         let y=148;
         for(const id in SPELLS){
           const s=SPELLS[id]; if(s.school!==school) continue;
           const known=pc.spells.includes(id);
           const can=known&&Spellcraft.canCast(pc,id).ok;
           const gemRamp={fire:4,air:8,water:3,earth:13,spirit:15,mind:10,body:2,light:5,dark:6}[s.school];
+          E.fillRect(46,y+22,SCREEN_W-260,1,palIdx(1,6)); // ruled page line
           E.fillRect(46,y+4,10,10,palIdx(gemRamp,9)); E.frameRect(46,y+4,10,10,palIdx(gemRamp,4));
           E.text(s.name,62,y+6,{size:11,ramp:known?(can?5:0):11,bright:can});
           E.text(s.sp+' sp — '+(s.req>=7?'Master':s.req>=4?'Expert':'Novice'),210,y+6,{size:9,ramp:0});
@@ -3362,8 +3378,16 @@ const Game = {
       for(const m of map.monsters) if(m.hp>0&&dist2(m.x,m.y,x,y)<0.5*0.5) return true;
       return false;
     };
+    const cx0=this.px, cy0=this.py;
     if(!blocked(this.px+dx,this.py)) this.px+=dx;
     if(!blocked(this.px,this.py+dy)) this.py+=dy;
+    if(this.px===cx0&&this.py===cy0&&(dx||dy)){ // wedged (round decor) — slide along the tangent
+      const m1=Math.hypot(dx,dy)||1;
+      for(const [tx2,ty2] of [[-dy/m1,dx/m1],[dy/m1,-dx/m1]]){
+        const k=m1*0.8;
+        if(!blocked(this.px+tx2*k,this.py+ty2*k)){ this.px+=tx2*k; this.py+=ty2*k; break; }
+      }
+    }
   },
   checkPortal(){
     const map=World.maps[this.mapId];
@@ -3796,7 +3820,8 @@ const Game = {
     c.looted=true;
     this.party.gold+=c.gold; this.stats.goldEarned+=c.gold;
     let msg='Searched the '+Monsters.def(c.mid).name.toLowerCase()+': '+c.gold+' gold';
-    for(const it of c.items){ if(this.giveItem(it)) msg+=', '+Items.displayName(it); else msg+=' (pack full: '+Items.displayName(it)+' left)'; }
+    const ordered=[...c.items].sort((a,b)=>((ITEMS[b.id].slot==='quest')?1:0)-((ITEMS[a.id].slot==='quest')?1:0));
+    for(const it of ordered){ if(this.giveItem(it)) msg+=', '+Items.displayName(it); else msg+=' ('+Items.displayName(it)+' abandoned — packs full)'; }
     Audio2.sfx('coin');
     Log.add(msg+'.',palIdx(5,11));
     this.onQuestItemsChanged();
@@ -4061,8 +4086,10 @@ const Game = {
     for(const id in World.maps){ const m=World.maps[id]; const dd={};
       for(const k in m.doors) if(m.doors[k].open) dd[k]=1;
       if(Object.keys(dd).length) doorsState[id]=dd; }
+    const partyClean=JSON.parse(JSON.stringify(this.party));
+    for(const pc of partyClean.pcs){ delete pc.painT; }
     return { v:SAVE_VERSION, ts:Date.now(), doorsState, seed:RNG.worldSeed, clock:this.clock.min,
-      party:this.party, mapId:this.mapId, px:this.px, py:this.py, ang:this.ang,
+      party:partyClean, mapId:this.mapId, px:this.px, py:this.py, ang:this.ang,
       rng:RNG.serialize(), maps:mapsState, flags:this.flags,
       corpses:this.corpses.filter(c=>!c.looted).map(c=>({mapId:c.mapId,mid:c.mid,x:+c.x.toFixed(2),y:+c.y.toFixed(2),gold:c.gold,items:c.items})),
       explored, stats:this.stats, victoryShown:this.victoryShown,

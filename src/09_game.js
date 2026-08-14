@@ -702,7 +702,8 @@ const Game = {
     c.looted=true;
     this.party.gold+=c.gold; this.stats.goldEarned+=c.gold;
     let msg='Searched the '+Monsters.def(c.mid).name.toLowerCase()+': '+c.gold+' gold';
-    for(const it of c.items){ if(this.giveItem(it)) msg+=', '+Items.displayName(it); else msg+=' (pack full: '+Items.displayName(it)+' left)'; }
+    const ordered=[...c.items].sort((a,b)=>((ITEMS[b.id].slot==='quest')?1:0)-((ITEMS[a.id].slot==='quest')?1:0));
+    for(const it of ordered){ if(this.giveItem(it)) msg+=', '+Items.displayName(it); else msg+=' ('+Items.displayName(it)+' abandoned — packs full)'; }
     Audio2.sfx('coin');
     Log.add(msg+'.',palIdx(5,11));
     this.onQuestItemsChanged();
@@ -967,8 +968,10 @@ const Game = {
     for(const id in World.maps){ const m=World.maps[id]; const dd={};
       for(const k in m.doors) if(m.doors[k].open) dd[k]=1;
       if(Object.keys(dd).length) doorsState[id]=dd; }
+    const partyClean=JSON.parse(JSON.stringify(this.party));
+    for(const pc of partyClean.pcs){ delete pc.painT; }
     return { v:SAVE_VERSION, ts:Date.now(), doorsState, seed:RNG.worldSeed, clock:this.clock.min,
-      party:this.party, mapId:this.mapId, px:this.px, py:this.py, ang:this.ang,
+      party:partyClean, mapId:this.mapId, px:this.px, py:this.py, ang:this.ang,
       rng:RNG.serialize(), maps:mapsState, flags:this.flags,
       corpses:this.corpses.filter(c=>!c.looted).map(c=>({mapId:c.mapId,mid:c.mid,x:+c.x.toFixed(2),y:+c.y.toFixed(2),gold:c.gold,items:c.items})),
       explored, stats:this.stats, victoryShown:this.victoryShown,
