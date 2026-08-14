@@ -17,8 +17,8 @@ Rules.statMod = function(v){
 
 // ---------- classes ----------
 const CLASSES = {
-  knight:  { name:'Knight',   hpBase:40, hpLv:7, spLv:0, spStat:null,          weapons:['sword','axe','mace','dagger','bow','staff'], armor:['leather','chain','plate','shield'], schools:[], startSkills:['sword','bodybuilding','shield','chain'] },
-  paladin: { name:'Paladin',  hpBase:34, hpLv:6, spLv:2, spStat:'personality', weapons:['sword','mace','dagger','bow'], armor:['leather','chain','plate','shield'], schools:['spirit','mind','body'], startSkills:['mace','spirit','shield','chain'] },
+  knight:  { name:'Knight',   hpBase:40, hpLv:7, spLv:0, spStat:null,          weapons:['sword','axe','mace','dagger','bow','staff'], armor:['leather','chain','plate','shield'], schools:[], startSkills:['sword','bodybuilding','shield','leather'] },
+  paladin: { name:'Paladin',  hpBase:34, hpLv:6, spLv:2, spStat:'personality', weapons:['sword','mace','dagger','bow'], armor:['leather','chain','plate','shield'], schools:['spirit','mind','body'], startSkills:['mace','spirit','shield','leather'] },
   archer:  { name:'Archer',   hpBase:30, hpLv:5, spLv:2, spStat:'intellect',   weapons:['bow','sword','dagger','axe'], armor:['leather','chain'], schools:['fire','air','water','earth'], startSkills:['bow','air','sword','leather'] },
   cleric:  { name:'Cleric',   hpBase:26, hpLv:4, spLv:3, spStat:'personality', weapons:['mace','staff'], armor:['leather','chain','shield'], schools:['spirit','mind','body','light','dark'], startSkills:['mace','body','spirit','leather'] },
   sorcerer:{ name:'Sorcerer', hpBase:20, hpLv:3, spLv:4, spStat:'intellect',   weapons:['dagger','staff','bow'], armor:['leather'], schools:['fire','air','water','earth','light','dark'], startSkills:['fire','staff','air','leather'] },
@@ -53,6 +53,7 @@ const SKILLS = {
 Rules.skillTier=function(pts){ return pts>=7?'master':pts>=4?'expert':pts>=1?'novice':'none'; };
 Rules.skillTierMult=function(pts){ return pts>=7?3:pts>=4?2:pts>=1?1:0; };
 Rules.skillUpCost=function(curPts){ return (curPts+1)*60; }; // gold at guild
+Rules.SKILL_LEARN_COST=100; // gold to learn a new class-legal skill at the trainer
 Rules.canLearnSkill=function(cls,skill){
   const c=CLASSES[cls], s=SKILLS[skill];
   if(!s) return false;

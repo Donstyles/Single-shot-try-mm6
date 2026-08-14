@@ -111,11 +111,11 @@ const Clock = {
       hhmm:(h<10?'0':'')+h+':'+(m<10?'0':'')+m,
       isNight: h<5||h>=21, isDusk: h>=19&&h<21, isDawn: h>=5&&h<7 };
   },
-  lightLevel(min){ // 0..1 ambient daylight
+  lightLevel(min){ // 0..1 ambient daylight (gentle dawn/dusk ramps)
     const h=(min%1440)/60;
-    if(h>=7&&h<19) return 1;
-    if(h>=5&&h<7) return (h-5)/2;
-    if(h>=19&&h<21) return 1-(h-19)/2;
+    if(h>=7&&h<18) return 1;
+    if(h>=5&&h<7) return 0.12+(h-5)/2*0.88;
+    if(h>=18&&h<21) return 1-(h-18)/3*0.88;
     return 0.12;
   }
 };
@@ -160,8 +160,8 @@ Rules.statMod = function(v){
 
 // ---------- classes ----------
 const CLASSES = {
-  knight:  { name:'Knight',   hpBase:40, hpLv:7, spLv:0, spStat:null,          weapons:['sword','axe','mace','dagger','bow','staff'], armor:['leather','chain','plate','shield'], schools:[], startSkills:['sword','bodybuilding','shield','chain'] },
-  paladin: { name:'Paladin',  hpBase:34, hpLv:6, spLv:2, spStat:'personality', weapons:['sword','mace','dagger','bow'], armor:['leather','chain','plate','shield'], schools:['spirit','mind','body'], startSkills:['mace','spirit','shield','chain'] },
+  knight:  { name:'Knight',   hpBase:40, hpLv:7, spLv:0, spStat:null,          weapons:['sword','axe','mace','dagger','bow','staff'], armor:['leather','chain','plate','shield'], schools:[], startSkills:['sword','bodybuilding','shield','leather'] },
+  paladin: { name:'Paladin',  hpBase:34, hpLv:6, spLv:2, spStat:'personality', weapons:['sword','mace','dagger','bow'], armor:['leather','chain','plate','shield'], schools:['spirit','mind','body'], startSkills:['mace','spirit','shield','leather'] },
   archer:  { name:'Archer',   hpBase:30, hpLv:5, spLv:2, spStat:'intellect',   weapons:['bow','sword','dagger','axe'], armor:['leather','chain'], schools:['fire','air','water','earth'], startSkills:['bow','air','sword','leather'] },
   cleric:  { name:'Cleric',   hpBase:26, hpLv:4, spLv:3, spStat:'personality', weapons:['mace','staff'], armor:['leather','chain','shield'], schools:['spirit','mind','body','light','dark'], startSkills:['mace','body','spirit','leather'] },
   sorcerer:{ name:'Sorcerer', hpBase:20, hpLv:3, spLv:4, spStat:'intellect',   weapons:['dagger','staff','bow'], armor:['leather'], schools:['fire','air','water','earth','light','dark'], startSkills:['fire','staff','air','leather'] },
@@ -196,6 +196,7 @@ const SKILLS = {
 Rules.skillTier=function(pts){ return pts>=7?'master':pts>=4?'expert':pts>=1?'novice':'none'; };
 Rules.skillTierMult=function(pts){ return pts>=7?3:pts>=4?2:pts>=1?1:0; };
 Rules.skillUpCost=function(curPts){ return (curPts+1)*60; }; // gold at guild
+Rules.SKILL_LEARN_COST=100; // gold to learn a new class-legal skill at the trainer
 Rules.canLearnSkill=function(cls,skill){
   const c=CLASSES[cls], s=SKILLS[skill];
   if(!s) return false;
@@ -404,7 +405,7 @@ const Spellcraft = {
   guildPrice(id){ const s=SPELLS[id]; return s.req>=7?2000:s.req>=4?400:60; },
   starting(cls){ // spells known at chargen
     return {paladin:['spirit_bless'],archer:['air_spark'],cleric:['body_heal','spirit_bless'],
-      sorcerer:['fire_bolt','light_torch'],druid:['earth_stone','body_heal'],knight:[]}[cls]||[];
+      sorcerer:['fire_bolt','air_spark'],druid:['earth_stone','body_heal'],knight:[]}[cls]||[];
   }
 };
 
@@ -499,23 +500,23 @@ const Loot = {
 // ---------- monsters ----------
 // ai: melee | ranged | caster ; und: undead flag ; tier drives loot
 const MONSTERS = {
-  goblin:      {name:'Goblin',        hp:12,  ac:5,  atk:2,  dn:1,dd:4,dp:0, spd:1.6, xp:30,  tier:0, ai:'melee',  aggro:6,  scale:0.82},
-  goblin_war:  {name:'Goblin Warrior',hp:22,  ac:8,  atk:4,  dn:1,dd:6,dp:1, spd:1.8, xp:60,  tier:1, ai:'melee',  aggro:7,  scale:0.9},
-  goblin_sham: {name:'Goblin Shaman', hp:18,  ac:6,  atk:3,  dn:1,dd:4,dp:0, spd:1.5, xp:80,  tier:1, ai:'caster', aggro:9,  scale:0.88, spell:{proj:'fire',n:2,d:4,cd:2600}},
-  wolf:        {name:'Wolf',          hp:16,  ac:7,  atk:3,  dn:1,dd:5,dp:1, spd:2.6, xp:45,  tier:0, ai:'melee',  aggro:8,  scale:0.8},
-  direwolf:    {name:'Direwolf',      hp:34,  ac:10, atk:6,  dn:2,dd:5,dp:1, spd:2.8, xp:130, tier:2, ai:'melee',  aggro:9,  scale:1.0},
-  bandit:      {name:'Bandit',        hp:26,  ac:9,  atk:5,  dn:1,dd:6,dp:1, spd:1.9, xp:90,  tier:1, ai:'melee',  aggro:8,  scale:1.0},
-  bandit_bow:  {name:'Bandit Archer', hp:20,  ac:8,  atk:5,  dn:1,dd:6,dp:0, spd:1.7, xp:95,  tier:1, ai:'ranged', aggro:11, scale:1.0, spell:{proj:'arrow',n:1,d:6,cd:2200}},
-  apprentice:  {name:'Rogue Apprentice',hp:24,ac:8,  atk:4,  dn:1,dd:4,dp:0, spd:1.6, xp:120, tier:2, ai:'caster', aggro:11, scale:1.0, spell:{proj:'spark',n:2,d:5,cd:2400}},
-  bat:         {name:'Cave Bat',      hp:8,   ac:9,  atk:2,  dn:1,dd:3,dp:0, spd:3.0, xp:25,  tier:0, ai:'melee',  aggro:7,  scale:0.5},
-  spider:      {name:'Crypt Spider',  hp:20,  ac:9,  atk:4,  dn:1,dd:4,dp:1, spd:2.2, xp:85,  tier:1, ai:'melee',  aggro:7,  scale:0.75, poison:0.35},
-  skeleton:    {name:'Skeleton',      hp:24,  ac:10, atk:5,  dn:1,dd:6,dp:1, spd:1.7, xp:100, tier:1, ai:'melee',  aggro:7,  scale:1.0, und:true},
-  skel_guard:  {name:'Skeleton Guard',hp:40,  ac:13, atk:7,  dn:2,dd:5,dp:2, spd:1.7, xp:180, tier:2, ai:'melee',  aggro:7,  scale:1.05, und:true},
-  zombie:      {name:'Zombie',        hp:36,  ac:6,  atk:4,  dn:1,dd:8,dp:1, spd:1.0, xp:110, tier:1, ai:'melee',  aggro:6,  scale:1.0, und:true, disease:0.3},
-  ghost:       {name:'Restless Shade',hp:30,  ac:14, atk:6,  dn:2,dd:4,dp:0, spd:2.0, xp:200, tier:2, ai:'melee',  aggro:8,  scale:1.0, und:true},
-  bandit_boss: {name:'Bandit Captain',hp:55,  ac:12, atk:7,  dn:2,dd:6,dp:2, spd:2.0, xp:300, tier:2, ai:'melee',  aggro:9,  scale:1.08, boss:true},
-  necromancer: {name:'Necromancer',   hp:48,  ac:12, atk:6,  dn:1,dd:6,dp:0, spd:1.6, xp:350, tier:3, ai:'caster', aggro:12, scale:1.0, und:false, boss:true, spell:{proj:'dark',n:3,d:5,cd:2800}},
-  lich:        {name:'Lich of the Vault',hp:160,ac:16,atk:10, dn:2,dd:8,dp:3, spd:1.8, xp:1500,tier:4, ai:'caster', aggro:14, scale:1.15, und:true, boss:true, spell:{proj:'dark',n:4,d:6,cd:2200}},
+  goblin:      {name:'Goblin',        hp:12,  ac:5,  atk:2,  dn:1,dd:4,dp:0, spd:1.6, xp:75,  tier:0, ai:'melee',  aggro:6,  scale:0.95},
+  goblin_war:  {name:'Goblin Warrior',hp:22,  ac:8,  atk:4,  dn:1,dd:6,dp:1, spd:1.8, xp:150,  tier:1, ai:'melee',  aggro:7,  scale:1.05},
+  goblin_sham: {name:'Goblin Shaman', hp:18,  ac:6,  atk:3,  dn:1,dd:4,dp:0, spd:1.5, xp:200,  tier:1, ai:'caster', aggro:9,  scale:1.0, spell:{proj:'fire',n:2,d:4,cd:2600}},
+  wolf:        {name:'Wolf',          hp:16,  ac:7,  atk:3,  dn:1,dd:5,dp:1, spd:2.6, xp:110,  tier:0, ai:'melee',  aggro:8,  scale:0.95},
+  direwolf:    {name:'Direwolf',      hp:34,  ac:10, atk:6,  dn:2,dd:5,dp:1, spd:2.8, xp:320, tier:2, ai:'melee',  aggro:9,  scale:1.18},
+  bandit:      {name:'Bandit',        hp:23,  ac:9,  atk:5,  dn:1,dd:6,dp:1, spd:1.9, xp:220,  tier:1, ai:'melee',  aggro:8,  scale:1.15},
+  bandit_bow:  {name:'Bandit Archer', hp:20,  ac:8,  atk:5,  dn:1,dd:6,dp:0, spd:1.7, xp:230,  tier:1, ai:'ranged', aggro:11, scale:1.15, spell:{proj:'arrow',n:1,d:6,cd:2200}},
+  apprentice:  {name:'Rogue Apprentice',hp:24,ac:8,  atk:4,  dn:1,dd:4,dp:0, spd:1.6, xp:300, tier:2, ai:'caster', aggro:11, scale:1.15, spell:{proj:'spark',n:2,d:5,cd:2400}},
+  bat:         {name:'Cave Bat',      hp:8,   ac:9,  atk:2,  dn:1,dd:3,dp:0, spd:3.0, xp:60,  tier:0, ai:'melee',  aggro:7,  scale:0.55},
+  spider:      {name:'Crypt Spider',  hp:20,  ac:9,  atk:4,  dn:1,dd:4,dp:1, spd:2.2, xp:210,  tier:1, ai:'melee',  aggro:7,  scale:0.85, poison:0.35},
+  skeleton:    {name:'Skeleton',      hp:20,  ac:9,  atk:5,  dn:1,dd:6,dp:1, spd:1.7, xp:250, tier:1, ai:'melee',  aggro:7,  scale:1.15, und:true},
+  skel_guard:  {name:'Skeleton Guard',hp:40,  ac:13, atk:7,  dn:2,dd:5,dp:2, spd:1.7, xp:450, tier:2, ai:'melee',  aggro:7,  scale:1.2, und:true},
+  zombie:      {name:'Zombie',        hp:36,  ac:6,  atk:4,  dn:1,dd:8,dp:1, spd:1.0, xp:270, tier:1, ai:'melee',  aggro:6,  scale:1.18, und:true, disease:0.3},
+  ghost:       {name:'Restless Shade',hp:30,  ac:14, atk:6,  dn:2,dd:4,dp:0, spd:2.0, xp:500, tier:2, ai:'melee',  aggro:8,  scale:1.15, und:true},
+  bandit_boss: {name:'Bandit Captain',hp:55,  ac:12, atk:7,  dn:2,dd:6,dp:2, spd:2.0, xp:750, tier:2, ai:'melee',  aggro:9,  scale:1.25, boss:true},
+  necromancer: {name:'Necromancer',   hp:48,  ac:12, atk:6,  dn:1,dd:6,dp:0, spd:1.6, xp:900, tier:3, ai:'caster', aggro:12, scale:1.18, und:false, boss:true, spell:{proj:'dark',n:3,d:5,cd:2800}},
+  lich:        {name:'Lich of the Vault',hp:160,ac:16,atk:10, dn:2,dd:8,dp:3, spd:1.8, xp:3500,tier:4, ai:'caster', aggro:14, scale:1.3, und:true, boss:true, spell:{proj:'dark',n:4,d:6,cd:2200}},
 };
 const Monsters = {
   def(mid){ const d=MONSTERS[mid]; if(!d) throw new Error('unknown monster '+mid); return d; },
@@ -680,8 +681,9 @@ const World = {
     cells[40*w+83]=0; floor[40*w+83]=1;
     map.portals.push({x:84,y:40,kind:'enter',to:'dun1'}); cells[40*w+84]=0; floor[40*w+84]=3;
     for(let y=39;y<=41;y++){cells[y*w+85]=3;} cells[40*w+85]=3;
-    map.decor.push({kind:'cryptgate',x:84.5,y:39.5});
-    map.decor.push({kind:'sign',x:82.5,y:41.5,label:'The Crypt'});
+    map.decor.push({kind:'cryptgate',x:84.5,y:39.6});
+    map.decor.push({kind:'brazier',x:82.5,y:39.5},{kind:'brazier',x:82.5,y:41.5});
+    map.decor.push({kind:'sign',x:82.5,y:42.5,label:'The Crypt'});
     // goblin camp W
     map.decor.push({kind:'campfire',x:12.5,y:36.5});
     map.decor.push({kind:'tent',x:10.5,y:34.5,solid:true},{kind:'tent',x:14.5,y:34.5,solid:true});
@@ -697,13 +699,17 @@ const World = {
     for(let y=63;y<=65;y++)for(let x=39;x<=42;x++) cells[y*w+x]=2;
     cells[64*w+39]=0; floor[64*w+39]=1; map.decor.push({kind:'sign',x:38.5,y:65.5,label:'Ranger hut'});
     // trees + rocks (deterministic scatter, keep clear of town/roads/water)
-    for(let i=0;i<520;i++){
+    for(let i=0;i<1000;i++){
       const x=r.int(4,w-5)+0.5,y=r.int(4,h-5)+0.5, ci=Math.floor(y)*w+Math.floor(x);
       if(cells[ci]||floor[ci]===1||floor[ci]===6||floor[ci]===2) continue;
       if(x>TOWN_X-2&&x<TOWN_X+40&&y>TOWN_Y-2&&y<TOWN_Y+18) continue;
-      const denseN = y<26; // north forest denser
-      if(!denseN&&r.chance(0.45)) continue;
+      const denseN = y<28; // north forest is real forest
+      if(!denseN&&r.chance(0.3)) continue;
       map.decor.push({kind:r.chance(0.85)?'tree':'rock',x,y,solid:true});
+      if(denseN&&r.chance(0.5)){ const x2=x+r.next()*2-1, y2=y+r.next()*2-1;
+        const ci2=Math.floor(y2)*w+Math.floor(x2);
+        if(!cells[ci2]&&floor[ci2]!==1&&floor[ci2]!==6) map.decor.push({kind:'tree',x:x2,y:y2,solid:true});
+      }
     }
     // signposts at gates
     map.decor.push({kind:'sign',x:gateE.x+1.5,y:gateE.y+1.5,label:'East: The Crypt. North-east: bandit camp.'});
@@ -714,7 +720,7 @@ const World = {
     map.npcs.push({id:'folk1',x:TOWN_X+18.5,y:TOWN_Y+9.6,kind:'peasant_f',name:'Marta the Baker'});
     map.npcs.push({id:'folk2',x:TOWN_X+8.5,y:TOWN_Y+13.5,kind:'peasant_m',name:'Old Tam'});
     map.npcs.push({id:'folk3',x:TOWN_X+27.5,y:TOWN_Y+13.5,kind:'guard',name:'Guard Willem'});
-    map.npcs.push({id:'folk4',x:TOWN_X+3.5,y:TOWN_Y+8.6,kind:'guard',name:'Guard Petra'});
+    map.npcs.push({id:'folk4',x:TOWN_X+1.6,y:TOWN_Y+6.3,kind:'guard',name:'Guard Petra'}); // west gate post, clear of the temple door
     // monsters (seeded): weak goblin singles near town, wolves mid, camps, ridge casters
     const M=map.monsters;
     const near=[[24,28],[22,44],[40,52],[68,36],[52,26],[68,44],[36,22],[60,54]];
@@ -759,7 +765,7 @@ const World = {
     };
     mk('dun1','The Crypt',DUN1_ROWS,{wallTex:5,floorId:4,chestTier:1,monsters:{a:'bat',p:'spider',k:'skeleton',z:'zombie'}},
       {up:{map:'outdoor',x:82.5,y:40.5},down:{map:'dun2',x:2.5,y:1.8}});
-    mk('dun2','The Catacombs',DUN2_ROWS,{wallTex:5,floorId:3,chestTier:2,monsters:{k:'skeleton',G:'skel_guard',z:'zombie',g:'ghost',n:'necromancer'}},
+    mk('dun2','The Catacombs',DUN2_ROWS,{wallTex:4,floorId:3,chestTier:2,monsters:{k:'skeleton',G:'skel_guard',z:'zombie',g:'ghost',n:'necromancer'}},
       {up:{map:'dun1',x:27.2,y:13.5},down:{map:'dun3',x:2.5,y:1.8}});
     mk('dun3','The Vault of Vintavia',DUN3_ROWS,{wallTex:6,floorId:5,chestTier:3,monsters:{G:'skel_guard',L:'lich'}},
       {up:{map:'dun2',x:27.5,y:13.5},down:{map:'dun2',x:27.5,y:13.5}});
@@ -772,22 +778,22 @@ const World = {
 const QUESTS = {
   main1:{name:'The Stolen Ledger', giver:'mayor',   kind:'fetchkill', item:'q_ledger', target:'bandit_boss',
     desc:'Bandits raided the counting house and took the tax ledger. Their camp lies north-east, past the east gate. Slay their captain and bring the ledger home.',
-    done:'The ledger! Vintavia is in your debt. Take this purse — and my thanks.', gold:300, xp:500},
+    done:'The ledger! Vintavia is in your debt. Take this purse — and my thanks.', gold:300, xp:800},
   main2:{name:'Silver for the Temple', giver:'priest', kind:'fetch', item:'q_censer',
     desc:'Grave-robbers dragged our silver censer into the Crypt east of town. Without it I cannot bless the harvest. Bring it back, and the Light will remember you.',
-    done:'The censer returns! Bless you, friends. Take this offering.', gold:400, xp:700, requires:null},
+    done:'The censer returns! Bless you, friends. Take this offering.', gold:400, xp:1200, requires:null},
   main3:{name:'The Vault Sigil', giver:'mayor', kind:'fetchkill', item:'q_sigil', target:'necromancer',
     desc:'You have proven yourselves. Listen: below the Crypt a necromancer digs toward the old Vault where the Crown of Vintavia sleeps. He carries the Vault Sigil. Take it from him.',
-    done:'The Sigil! Then the Vault can be opened. One task remains, heroes.', gold:800, xp:1500, requires:['main1','main2']},
+    done:'The Sigil! Then the Vault can be opened. One task remains, heroes.', gold:800, xp:2500, requires:['main1','main2']},
   main4:{name:'The Crown of Vintavia', giver:'mayor', kind:'fetch', item:'q_crown',
     desc:'The Sigil opens the sealed door on the lowest level. Beyond it waits the Lich that stole our Crown a century ago. Destroy it. Bring the Crown home, and your names outlive us all.',
-    done:'The Crown... after a hundred years. Vintavia is whole again. Hail, Heroes of Vintavia!', gold:2000, xp:5000, requires:['main3'], final:true},
+    done:'The Crown... after a hundred years. Vintavia is whole again. Hail, Heroes of Vintavia!', gold:2000, xp:8000, requires:['main3'], final:true},
   side_wolves:{name:'Wolf Cull', giver:'trainer', kind:'collect', item:'q_fang', count:3,
     desc:'Direwolves out of the north forest have taken two horses this month. Bring me three fangs and I will owe you coin and a favor.',
-    done:'Three fangs — good hunting. Here is your coin.', gold:250, xp:400},
+    done:'Three fangs — good hunting. Here is your coin.', gold:250, xp:700},
   side_goblins:{name:'Quiet Roads', giver:'tavernkeep', kind:'killgroup', group:'gobcamp', count:5,
     desc:'Goblins from the western dens rob every cart that comes down the road. Thin them out — five heads — and the Gilded Griffin will never charge your party for a bed again.',
-    done:'Five, you say? Ha! The roads breathe easier. Your beds are free, friends — forever.', gold:150, xp:300, perk:'freerest'},
+    done:'Five, you say? Ha! The roads breathe easier. Your beds are free, friends — forever.', gold:150, xp:500, perk:'freerest'},
 };
 const Quests = {
   status(party,qid){ const q=party.quests[qid]; return q?q.state:'none'; },
@@ -946,15 +952,19 @@ const Engine = {
     const torch=cam.torch||0;            // extra radius light indoors
     const outdoor=map.outdoor;
     const shadeAt=(d,side)=>{           // returns 0..12 darkening
-      let s=(outdoor? d*0.22 : d*(1.7-torch*0.9));
+      let s=(outdoor? Math.min(d*0.22,5.0) : d*(1.7-torch*0.9)); // day never fades to black — haze handles distance
       s+= (1-light)*(outdoor?7:3);
       if(side) s+=1.2;
       return s>12?12:s|0;
     };
-    // daylight distance haze: far geometry dissolves into sky (1998 outdoor depth cue)
-    const hazeOn=outdoor&&light>0.45;
-    const hazeIdx=palIdx(3,(9+light*4)|0);
-    const hazeLvl=d=>d>30?3:d>21?2:d>13?1:0; // 0 none, 1=25%, 2=50%, 3=75% dither to sky
+    // distance haze: far geometry dissolves into the sky (1998 outdoor depth cue)
+    const hh=((cam.timeMin%1440)/60);
+    const warmHour=(hh>=4.8&&hh<7.5)||(hh>=18.5&&hh<21);
+    const hazeOn=outdoor&&light>0.25;
+    const hazeIdx=warmHour? palIdx(12,(5+light*5)|0) : palIdx(3,(9+light*4)|0);
+    const hazeLvl=d=>d>28?3:d>19?2:d>12?1:0; // 0 none, 1=25%, 2=50%, 3=75% dither to sky
+    const HZT=[0,4,8,12]; // Bayer thresholds per haze level (ordered dither, no hatch artifacts)
+    const cellJit=(cx,cy)=>((cx*97+cy*57)&63); // per-cell texture offset kills tiling
     // sky / ceiling
     if(outdoor){
       const sky=Art.sky(cam.timeMin), skw=sky.w;
@@ -983,12 +993,13 @@ const Engine = {
         const row=y*w;
         for(let x=0;x<w;x++){
           const cx=fx|0, cy=fy|0;
-          if(hz&&((hz===3&&((x+y)&3)!==0)||(hz===2&&((x+y)&1))||(hz===1&&(x&1)&&(y&1)))){ fb[row+x]=hazeIdx; fx+=stepX; fy+=stepY; continue; }
+          if(hz&&BAYER4[((y&3)<<2)|(x&3)]<HZT[hz]){ fb[row+x]=hazeIdx; fx+=stepX; fy+=stepY; continue; }
           let tex;
           if(cx>=0&&cy>=0&&cx<mw&&cy<mh){
             tex=isFloor? flTexs[floorIds[cy*mw+cx]] : ceilTex; // water frames swapped in Art.tick
           } else tex=isFloor?flTexs[0]:ceilTex;
-          const tx=((fx-cx)*64)|0, ty=((fy-cy)*64)|0;
+          const jit=cellJit(cx,cy);
+          const tx=((((fx-cx)*64)|0)+jit)&63, ty=((((fy-cy)*64)|0)+(jit>>1))&63;
           let pi=tex[ty*64+tx];
           const s=(pi&15)-sh; fb[row+x]=(pi&240)|(s<0?0:s);
           fx+=stepX; fy+=stepY;
@@ -1034,6 +1045,7 @@ const Engine = {
       let y0=horizon-(lineH>>1), y1=y0+lineH;
       if(wallX===0){ const hx=posX+rdX*dist, hy=posY+rdY*dist; wallX=side? hx-(hx|0): hy-(hy|0); }
       let texX=(wallX*64)|0; if((side===0&&rdX>0)||(side===1&&rdY<0)) texX=63-texX;
+      if(tex!==7&&tex!==8&&tex!==9) texX=(texX+cellJit(mapX,mapY))&63; // vary repeats (not doors/shopfronts)
       const wt=Art.walls[tex];
       const sh=shadeAt(dist,side);
       const hz=hazeOn?hazeLvl(dist):0;
@@ -1041,7 +1053,7 @@ const Engine = {
       let tpos=y0<0? -y0*step:0;
       const ys=Math.max(0,y0), ye=Math.min(h,y1);
       for(let y=ys;y<ye;y++){
-        if(hz&&((hz===3&&((x+y)&3)!==0)||(hz===2&&((x+y)&1))||(hz===1&&(x&1)&&(y&1)))){ fb[y*w+x]=hazeIdx; tpos+=step; continue; }
+        if(hz&&BAYER4[((y&3)<<2)|(x&3)]<HZT[hz]){ fb[y*w+x]=hazeIdx; tpos+=step; continue; }
         const pi=wt[((tpos|0)&63)*64+texX]; tpos+=step;
         const s=(pi&15)-sh;
         fb[y*w+x]=(pi&240)|(s<0?0:s);
@@ -1072,7 +1084,7 @@ const Engine = {
         const texX=((sx-x0)*tw/sprW)|0;
         for(let sy=Math.max(0,y0);sy<Math.min(h,y1);sy++){
           if(ghost&&((sx+sy)&1)) continue; // dithered translucency
-          if(hz&&((hz>=2&&((sx+sy)&1))||(hz===1&&(sx&1)&&(sy&1)))) continue;
+          if(hz&&BAYER4[((sy&3)<<2)|(sx&3)]<HZT[hz]) continue;
           const pi=tex[(((sy-y0)*th/sprH)|0)*tw+texX];
           if(!pi) continue;
           const s=(pi&15)-sh;
@@ -1111,7 +1123,7 @@ const Engine = {
 'use strict';
 
 const Art = {
-  walls:{}, floors:{}, ceilings:{}, sprites:{}, icons:{}, portraits:{}, paperdolls:{}, ui:{}, font:null,
+  walls:{}, floors:{}, ceilings:{}, sprites:{}, icons:{}, portraits:{}, portraitsPain:{}, paperdolls:{}, ui:{}, font:null,
   _skyCache:{}, _water:[null,null], _waterFlip:0,
 };
 
@@ -1160,11 +1172,14 @@ Art.bakeTextures=function(){
     const ex=Math.min(bx,bw-bx)/mortar, ey=Math.min(by,bh-by)/mortar;
     return Math.min(1,Math.min(ex,ey));
   };
-  // 1: town stone — big ashlar blocks, warm gray
+  // 1: town stone — big ashlar blocks, weathered: grime streaks + moss at the base
   Art.walls[1]=bakePix(64,64,(x,y)=>{
     const b=brickPat(x,y,32,16,2.4), n=N(x/6,y/6);
-    const s=4+b*5+n*4+N2(x/3,y/3)*1.5;
-    return palIdx(0,clamp(s|0,2,13));
+    const streak=N2(x/1.8,7.3)>0.78&&y>10? 2:0; // vertical water stains
+    const chip=N2(x/2.2,y/2.2)>0.9?2:0;
+    if(y>46&&N2(x/3.5,y/3)>0.7&&b>0.4) return palIdx(13,3+(n*3|0)); // moss creep
+    const s=3+b*5+n*3.4-streak-chip;
+    return palIdx(0,clamp(s|0,1,11));
   });
   // 2: timber house — cream plaster + dark beams + window glow
   Art.walls[2]=bakePix(64,64,(x,y)=>{
@@ -1188,11 +1203,11 @@ Art.bakeTextures=function(){
     const b=brickPat(x,y,16,8,1.6), n=N(x/4,y/4);
     return palIdx(11,1+b*(4+n*5)|0);
   });
-  // 5: crypt stone — pale, bone inlay
+  // 5: crypt stone — pale ashlar, subtle bone inlay
   Art.walls[5]=bakePix(64,64,(x,y)=>{
     const b=brickPat(x,y,32,13,2), n=N(x/5,y/5);
-    const bone=(y%13>4&&y%13<8)&&N2(x/3,17)>0.72;
-    if(bone&&b>0.5) return palIdx(9,11+(x%2));
+    const bone=(y%13>4&&y%13<8)&&N2(x/3,17)>0.8;
+    if(bone&&b>0.6) return palIdx(0,9+(x%2));
     return palIdx(0,2+b*(3+n*5)|0);
   });
   // 6: vault marble — dark green-black with gold veins
@@ -1260,11 +1275,12 @@ Art.bakeTextures=function(){
     const b=brickPat(x,y,21,21,1.6), crack=N2(x/2,y/2)>0.87;
     return palIdx(0,crack?1:2+b*(3+N(x/6,y/6)*4)|0);
   });
-  Art.floors[5]=bakePix(64,64,(x,y)=>{ // vault marble
+  Art.floors[5]=bakePix(64,64,(x,y)=>{ // vault marble floor: pale slabs, gold trim
+    if(x%32<2||y%32<2) return palIdx(5,7+((x+y)%2)); // gold seams
     const v=Math.abs(N(x/9,y/16)-0.5)<0.025;
     const b=brickPat(x,y,32,32,1.5);
-    if(v&&b>0.3) return palIdx(5,9);
-    return palIdx(13,2+(b*3+N2(x/6,y/6)*2|0));
+    if(v&&b>0.3) return palIdx(8,8);
+    return palIdx(0,4+(b*4+N2(x/6,y/6)*2|0));
   });
   // water (2 frames, swapped by Art.tick)
   const wat=(ph)=>bakePix(64,64,(x,y)=>{
@@ -1276,8 +1292,16 @@ Art.bakeTextures=function(){
   Art._water[0]=wat(0); Art._water[1]=wat(1.5);
   Art.floors[6]=Art._water[0];
   Art.floors[7]=bakePix(64,64,(x,y)=>palIdx(5,9+(N(x/4,y/4)*3|0))); // sand
-  // ceilings
+  // ceilings — one identity per dungeon level
   Art.ceilings.default=bakePix(64,64,(x,y)=>palIdx(11,2+(N(x/6,y/6)*3|0)));
+  Art.ceilings.dun1=bakePix(64,64,(x,y)=>{ // crypt: pale vaulted ribs
+    const rib=(x%32<3)||(y%32<3);
+    return palIdx(0,(rib?4:2)+(N(x/6,y/6)*2|0));
+  });
+  Art.ceilings.dun2=bakePix(64,64,(x,y)=>{ // catacombs: rough dark brick
+    const b=brickPat(x,y,16,8,1.4);
+    return palIdx(11,(b*3+N(x/4,y/4)*2|0));
+  });
   Art.ceilings.dun3=bakePix(64,64,(x,y)=>{
     const v=Math.abs(N(x/9,y/16)-0.5)<0.02;
     return v?palIdx(5,7):palIdx(13,1+(N2(x/5,y/5)*2|0));
@@ -1312,10 +1336,13 @@ Art.sky=function(timeMin){
     const d=Math.hypot(dx,dy);
     if(isNight){ if(d<9&&!(Math.hypot(dx-4,dy-2)<7)) {R=230;G=230;B=215;} }
     else if(d<11){R=255;G=245;B=200;} else if(d<26){R=lerp(R,255,(26-d)/17*0.5);G=lerp(G,240,(26-d)/17*0.4);}
+    const warm=bucket==='dawn'||bucket==='dusk';
     for(const [cx,cy,cw,ch,op] of clouds){
       let ddx=Math.min(Math.abs(x-cx),w-Math.abs(x-cx))/cw, ddy=(y-cy)/ch;
       const cd=ddx*ddx+ddy*ddy;
-      if(cd<1){ const k=(1-cd)*op; const cl=isNight?60:245; R=lerp(R,cl,k);G=lerp(G,cl,k);B=lerp(B,isNight?70:250,k*0.9); }
+      if(cd<1){ const k=(1-cd)*op;
+        const cr=isNight?55:warm?250:245, cg=isNight?58:warm?185:243, cb=isNight?72:warm?135:250;
+        R=lerp(R,cr,k);G=lerp(G,cg,k);B=lerp(B,cb,k*0.9); }
     }
     for(const [px,py,s] of stars){ if(Math.abs(x-px)<s&&Math.abs(y-py)<s){R=240;G=240;B=220;} }
     return palDither(R,G,B,x,y,10);
@@ -1329,11 +1356,12 @@ Art.bakeFont=function(){
   const font={sizes:{},draw:null,width:null};
   const cnv=document.createElement('canvas'); cnv.width=48; cnv.height=48;
   const g=cnv.getContext('2d',{willReadFrequently:true});
+  const EXTRA='’‘“”—–◆✓►◄−×…é↑↓←→';
   for(const sz of sizes){
     const glyphs={};
     g.font='bold '+sz+'px Georgia, "Times New Roman", serif';
-    for(let c=32;c<127;c++){
-      const ch=String.fromCharCode(c);
+    const chars=[]; for(let c=32;c<127;c++) chars.push(String.fromCharCode(c)); for(const ch of EXTRA) chars.push(ch);
+    for(const ch of chars){
       const met=g.measureText(ch);
       const gw=Math.max(1,Math.ceil(met.width)), gh=sz+4;
       g.clearRect(0,0,48,48);
@@ -1343,18 +1371,25 @@ Art.bakeFont=function(){
       const d=g.getImageData(0,0,Math.min(48,gw+2),gh).data;
       const w2=Math.min(48,gw+2);
       const data=new Uint8Array(w2*gh);
-      for(let i=0;i<w2*gh;i++){ const a=d[i*4+3]; data[i]=a>190?3:a>110?2:a>50?1:0; }
+      for(let i=0;i<w2*gh;i++){ const a=d[i*4+3]; data[i]=a>190?3:a>110?2:a>36?1:0; } // low floor keeps colon dots alive
       glyphs[ch]={w:w2,h:gh,adv:gw+1,data};
     }
     font.sizes[sz]=glyphs;
   }
-  font.width=(str,size)=>{ const gs=font.sizes[size]||font.sizes[11]; let w=0; for(const ch of str){ const gl=gs[ch]||gs['?']; w+=gl.adv; } return w; };
+  font.width=(str,size)=>{ const gs=font.sizes[size]||font.sizes[11]; let w=0; for(const ch of str){ if(ch===':'){w+=5;continue;} const gl=gs[ch]||gs['?']; w+=gl.adv; } return w; };
+  const FALLBACK={'’':"'",'‘':"'",'“':'"','”':'"','—':'-','–':'-','−':'-','…':'...'};
   font.draw=(eng,str,x,y,opts)=>{
     const size=opts.size||11, ramp=opts.ramp===undefined?5:opts.ramp, gs=font.sizes[size]||font.sizes[11];
     const shades=opts.bright? [0,9,12,15]:[0,7,10,13];
     let cx=x|0;
     for(const ch of str){
-      const gl=gs[ch]||gs['?']; if(!gl){cx+=4;continue;}
+      if(ch===':'){ // hand-placed: quantization eats the top dot at small sizes
+        const dotY1=(y|0)+Math.round(size*0.38), dotY2=(y|0)+Math.round(size*0.82), c=palIdx(ramp,shades[3]);
+        for(const dy of [dotY1,dotY2]){ if(opts.shadow!==false){eng.px(cx+2,dy+1,240);eng.px(cx+3,dy+1,240);}
+          eng.px(cx+1,dy,c); eng.px(cx+2,dy,c); eng.px(cx+1,dy+1,c); eng.px(cx+2,dy+1,c); }
+        cx+=5; continue;
+      }
+      const gl=gs[ch]||gs[FALLBACK[ch]]||gs['?']; if(!gl){cx+=4;continue;}
       for(let gy=0;gy<gl.h;gy++)for(let gx=0;gx<gl.w;gx++){
         const lv=gl.data[gy*gl.w+gx]; if(!lv) continue;
         const sx=cx+gx, sy=(y|0)+gy;
@@ -1519,8 +1554,8 @@ function drawWeapon(g,type,x,y,ang,len){
 // ---------- humanoid rig (64x96) ----------
 function drawHumanoid(g,W,H,frame,p){
   const cx=W/2, groundY=H-6;
-  const s=p.size||1;
-  const hipY=groundY-30*s, chestY=hipY-16*s, headY=chestY-15*s, headR=8*s*(p.headR||1);
+  const s=(p.size||1)*1.18;                 // bulked rig: monsters must own the frame
+  const hipY=groundY-34*s, chestY=hipY-18*s, headY=chestY-16*s, headR=9*s*(p.headR||1);
   if(frame==='corpse'){
     bloodPool(g,cx,groundY-2,20*s,5*s);
     vol(g,cx,groundY-7,17*s,6*s,p.cloth); // torso lying
@@ -1530,24 +1565,25 @@ function drawHumanoid(g,W,H,frame,p){
     if(p.weapon) drawWeapon(g,p.weapon,cx+8*s,groundY-2,1.35,16*s);
     return;
   }
-  shadowBlob(g,cx,groundY,14*s,4);
+  shadowBlob(g,cx,groundY,15*s,4);
   const walk=frame==='walk'?5*s:0;
   // legs
-  limb(g,cx-4*s,hipY,cx-5*s-walk*0.6,groundY,5*s,p.legs||p.cloth2||'#4a3620');
-  limb(g,cx+4*s,hipY,cx+5*s+walk*0.6,groundY,5*s,darken(p.legs||p.cloth2||'#4a3620',20));
-  // torso
-  vol(g,cx,chestY+8*s,10*s*(p.bulk||1),14*s,p.cloth);
-  if(p.tabard){ g.fillStyle=p.tabard; g.fillRect(cx-4*s,chestY-2*s,8*s,20*s); }
-  if(p.belt){ g.fillStyle='#3a2a14'; g.fillRect(cx-9*s,hipY-4*s,18*s,3*s); }
+  limb(g,cx-4.5*s,hipY,cx-6*s-walk*0.6,groundY,6.5*s,p.legs||p.cloth2||'#4a3620');
+  limb(g,cx+4.5*s,hipY,cx+6*s+walk*0.6,groundY,6.5*s,darken(p.legs||p.cloth2||'#4a3620',20));
+  // torso (broad shoulders taper to hip)
+  vol(g,cx,chestY+9*s,12*s*(p.bulk||1),16*s,p.cloth);
+  vol(g,cx,chestY+2*s,12.5*s*(p.bulk||1),7*s,lighten(p.cloth,8),{noline:1}); // shoulder mass
+  if(p.tabard){ g.fillStyle=p.tabard; g.fillRect(cx-5*s,chestY-2*s,10*s,24*s); }
+  if(p.belt){ g.fillStyle='#3a2a14'; g.fillRect(cx-10*s,hipY-4*s,20*s,3.5*s); }
   // off arm / shield
-  if(p.shield){ limb(g,cx-9*s,chestY+4*s,cx-14*s,chestY+12*s,4*s,p.skin); vol(g,cx-15*s,chestY+12*s,7*s,9*s,p.shieldCol||'#7a5a30'); }
-  else limb(g,cx-9*s,chestY+4*s,cx-13*s,chestY+16*s,4*s,p.sleeves||p.skin);
+  if(p.shield){ limb(g,cx-11*s,chestY+4*s,cx-16*s,chestY+13*s,5*s,p.skin); vol(g,cx-17*s,chestY+13*s,8.5*s,11*s,p.shieldCol||'#7a5a30'); }
+  else limb(g,cx-11*s,chestY+4*s,cx-15*s,chestY+18*s,5*s,p.sleeves||p.skin);
   // weapon arm
   const atk=frame==='attack';
-  const ax=cx+9*s, ay=chestY+4*s;
-  const hx=atk?cx+14*s:cx+12*s, hy=atk?chestY-10*s:chestY+15*s;
-  limb(g,ax,ay,hx,hy,4*s,p.sleeves||p.skin);
-  if(p.weapon) drawWeapon(g,p.weapon,hx,hy,atk?0.5:0.15,(p.weapon==='staff'?26:p.weapon==='club'?14:18)*s);
+  const ax=cx+11*s, ay=chestY+4*s;
+  const hx=atk?cx+16*s:cx+14*s, hy=atk?chestY-12*s:chestY+17*s;
+  limb(g,ax,ay,hx,hy,5*s,p.sleeves||p.skin);
+  if(p.weapon) drawWeapon(g,p.weapon,hx,hy,atk?0.5:0.15,(p.weapon==='staff'?28:p.weapon==='club'?15:20)*s);
   // head
   vol(g,cx,headY,headR,headR*1.12,p.skin);
   // face hint
@@ -1709,13 +1745,19 @@ const NPC_PAINTERS={
 };
 function drawTree(g,W,H,variant){
   const cx=W/2, gy=H-4;
-  shadowBlob(g,cx,gy,18,5);
-  limb(g,cx,gy,cx+(variant?3:-2),gy-34,7,'#5a4428');
+  shadowBlob(g,cx,gy,20,5);
+  limb(g,cx,gy,cx+(variant?3:-2),gy-30,8,'#5a4428');
+  limb(g,cx,gy-22,cx-9,gy-38,4,'#4a3820'); limb(g,cx,gy-26,cx+10,gy-42,4,'#4a3820');
   const leaf=variant?'#4a7a34':'#3e6e40';
-  vol(g,cx-10,gy-42,13,11,leaf,{noline:1});
-  vol(g,cx+9,gy-46,14,12,lighten(leaf,10),{noline:1});
-  vol(g,cx,gy-56,15,13,leaf,{noline:1});
-  vol(g,cx-2,gy-50,10,9,lighten(leaf,22),{noline:1});
+  // canopy: flat-shaded blob cluster (no radial rims — they read as rings)
+  const blob=(x,y,rx,ry,c)=>{ g.fillStyle=c; g.beginPath(); g.ellipse(x,y,rx,ry,0,0,7); g.fill(); };
+  blob(cx,gy-52,26,22,darken(leaf,28));
+  blob(cx-12,gy-44,15,12,leaf); blob(cx+11,gy-48,16,13,leaf);
+  blob(cx+2,gy-60,17,13,leaf); blob(cx-6,gy-54,12,10,lighten(leaf,14));
+  blob(cx+7,gy-56,9,8,lighten(leaf,26)); blob(cx-14,gy-50,7,6,lighten(leaf,20));
+  // leaf speckle for texture
+  for(let i=0;i<46;i++){ const a=i*2.4, r=(i*7919%23); const x=cx+Math.cos(a)*r, y=gy-52+Math.sin(a)*r*0.8;
+    g.fillStyle=(i%3)?darken(leaf,14):lighten(leaf,30); g.fillRect(x,y,2,2); }
 }
 const DECOR_PAINTERS={
   tree:  (g,W,H)=>drawTree(g,W,H,0),
@@ -1763,13 +1805,19 @@ function paintFace(big,W2,H2,p){
   // eyes
   const ey=hy-hr*0.1, ex=hr*0.42;
   for(const d of [-1,1]){
-    g.fillStyle='#e8e0d4'; g.beginPath(); g.ellipse(cx+d*ex,ey,hr*0.2,hr*0.12,0,0,7); g.fill();
-    g.fillStyle=p.eyes||'#4a6a8a'; g.beginPath(); g.ellipse(cx+d*ex,ey,hr*0.09,hr*0.1,0,0,7); g.fill();
-    g.fillStyle='#100c08'; g.beginPath(); g.ellipse(cx+d*ex,ey,hr*0.045,hr*0.05,0,0,7); g.fill();
-    g.strokeStyle='rgba(40,20,10,0.7)'; g.lineWidth=2; g.beginPath(); g.moveTo(cx+d*ex-hr*0.2,ey-hr*0.1); g.quadraticCurveTo(cx+d*ex,ey-hr*0.2,cx+d*ex+hr*0.2,ey-hr*0.08); g.stroke();
-    // brow
+    if(p.pain){ // squeezed shut
+      g.strokeStyle='rgba(40,20,10,0.85)'; g.lineWidth=2.5;
+      g.beginPath(); g.moveTo(cx+d*ex-hr*0.18,ey); g.quadraticCurveTo(cx+d*ex,ey+hr*0.08,cx+d*ex+hr*0.18,ey); g.stroke();
+    } else {
+      g.fillStyle='#e8e0d4'; g.beginPath(); g.ellipse(cx+d*ex,ey,hr*0.2,hr*0.12,0,0,7); g.fill();
+      g.fillStyle=p.eyes||'#4a6a8a'; g.beginPath(); g.ellipse(cx+d*ex,ey,hr*0.09,hr*0.1,0,0,7); g.fill();
+      g.fillStyle='#100c08'; g.beginPath(); g.ellipse(cx+d*ex,ey,hr*0.045,hr*0.05,0,0,7); g.fill();
+      g.strokeStyle='rgba(40,20,10,0.7)'; g.lineWidth=2; g.beginPath(); g.moveTo(cx+d*ex-hr*0.2,ey-hr*0.1); g.quadraticCurveTo(cx+d*ex,ey-hr*0.2,cx+d*ex+hr*0.2,ey-hr*0.08); g.stroke();
+    }
+    // brow (pain = knotted upward)
     g.strokeStyle=p.hairC||'#4a3828'; g.lineWidth=p.thickBrow?5:3;
-    g.beginPath(); g.moveTo(cx+d*ex-hr*0.22,ey-hr*0.25); g.quadraticCurveTo(cx+d*ex,ey-hr*(0.34+(p.angry?0.02:0.08)),cx+d*ex+hr*0.2,ey-hr*(p.angry?0.36:0.28)); g.stroke();
+    const knot=p.pain?0.38:(p.angry?0.36:0.28);
+    g.beginPath(); g.moveTo(cx+d*ex-hr*0.22,ey-hr*(p.pain?0.18:0.25)); g.quadraticCurveTo(cx+d*ex,ey-hr*(0.34+(p.angry||p.pain?0.02:0.08)),cx+d*ex+hr*0.2,ey-hr*knot); g.stroke();
   }
   // nose
   g.strokeStyle='rgba(70,35,18,0.5)'; g.lineWidth=2.5;
@@ -1778,10 +1826,15 @@ function paintFace(big,W2,H2,p){
   g.beginPath(); g.ellipse(cx-hr*0.1,hy+hr*0.42,2.5,2,0,0,7); g.fill();
   g.beginPath(); g.ellipse(cx+hr*0.1,hy+hr*0.42,2.5,2,0,0,7); g.fill();
   // mouth
-  g.strokeStyle='rgba(90,30,25,0.85)'; g.lineWidth=2.5;
   const my=hy+hr*0.68;
-  g.beginPath(); g.moveTo(cx-hr*0.26,my); g.quadraticCurveTo(cx,my+(p.smile?hr*0.1:p.stern?-hr*0.02:hr*0.04),cx+hr*0.26,my); g.stroke();
-  g.fillStyle='rgba(190,110,95,0.5)'; g.beginPath(); g.ellipse(cx,my+hr*0.09,hr*0.16,hr*0.05,0,0,7); g.fill();
+  if(p.pain){ // open cry
+    g.fillStyle='rgba(60,18,16,0.9)'; g.beginPath(); g.ellipse(cx,my+hr*0.02,hr*0.16,hr*0.13,0,0,7); g.fill();
+    g.strokeStyle='rgba(40,15,12,0.8)'; g.lineWidth=1.5; g.stroke();
+  } else {
+    g.strokeStyle='rgba(90,30,25,0.85)'; g.lineWidth=2.5;
+    g.beginPath(); g.moveTo(cx-hr*0.26,my); g.quadraticCurveTo(cx,my+(p.smile?hr*0.1:p.stern?-hr*0.02:hr*0.04),cx+hr*0.26,my); g.stroke();
+    g.fillStyle='rgba(190,110,95,0.5)'; g.beginPath(); g.ellipse(cx,my+hr*0.09,hr*0.16,hr*0.05,0,0,7); g.fill();
+  }
   // age lines
   if(p.old){ g.strokeStyle='rgba(70,35,18,0.35)'; g.lineWidth=2;
     for(const d of [-1,1]){ g.beginPath(); g.moveTo(cx+d*hr*0.5,hy+hr*0.35); g.quadraticCurveTo(cx+d*hr*0.42,hy+hr*0.6,cx+d*hr*0.3,my+4); g.stroke(); }
@@ -1789,8 +1842,15 @@ function paintFace(big,W2,H2,p){
   if(p.scar){ g.strokeStyle='rgba(150,60,50,0.8)'; g.lineWidth=2.5; g.beginPath(); g.moveTo(cx-hr*0.5,hy-hr*0.4); g.lineTo(cx-hr*0.2,hy+hr*0.25); g.stroke(); }
   // facial hair
   const hairC=p.hairC||'#4a3828';
-  if(p.beard){ g.fillStyle=hairC; g.beginPath(); g.moveTo(cx-hr*0.6,hy+hr*0.3); g.quadraticCurveTo(cx,hy+hr*(1.1+p.beard*0.25),cx+hr*0.6,hy+hr*0.3); g.quadraticCurveTo(cx,hy+hr*0.75,cx-hr*0.6,hy+hr*0.3); g.fill(); }
-  if(p.mustache){ g.strokeStyle=hairC; g.lineWidth=5; g.beginPath(); g.moveTo(cx-hr*0.25,my-3); g.quadraticCurveTo(cx,my-8,cx+hr*0.25,my-3); g.stroke(); }
+  if(p.beard){ // full beard from jawline, mustache bridge, lip line kept visible
+    g.fillStyle=hairC; g.beginPath();
+    g.moveTo(cx-hr*0.78,hy+hr*0.1); g.quadraticCurveTo(cx-hr*0.7,hy+hr*(0.95+p.beard*0.3),cx,hy+hr*(1.15+p.beard*0.3));
+    g.quadraticCurveTo(cx+hr*0.7,hy+hr*(0.95+p.beard*0.3),cx+hr*0.78,hy+hr*0.1);
+    g.quadraticCurveTo(cx+hr*0.5,hy+hr*0.5,cx,hy+hr*0.52); g.quadraticCurveTo(cx-hr*0.5,hy+hr*0.5,cx-hr*0.78,hy+hr*0.1); g.fill();
+    g.strokeStyle=hairC; g.lineWidth=6; g.beginPath(); g.moveTo(cx-hr*0.3,my-2); g.quadraticCurveTo(cx,my-7,cx+hr*0.3,my-2); g.stroke();
+    g.strokeStyle='rgba(200,120,100,0.8)'; g.lineWidth=2; g.beginPath(); g.moveTo(cx-hr*0.16,my+2); g.quadraticCurveTo(cx,my+4,cx+hr*0.16,my+2); g.stroke();
+  }
+  if(p.mustache&&!p.beard){ g.strokeStyle=hairC; g.lineWidth=5; g.beginPath(); g.moveTo(cx-hr*0.25,my-3); g.quadraticCurveTo(cx,my-8,cx+hr*0.25,my-3); g.stroke(); }
   // hair (skip under hood/scarf — they framed the face already)
   if(p.head!=='hood'&&p.head!=='scarf'){
     if(p.hair===1){ g.fillStyle=hairC; g.beginPath(); g.arc(cx,hy-hr*0.32,hr*0.95,Math.PI*0.95,Math.PI*2.05); g.fill(); }
@@ -1807,11 +1867,13 @@ function paintFace(big,W2,H2,p){
 }
 function bakePortrait(id,p){
   const W=58,H=66;
-  Art.portraits[id]=bakeFromCanvas(W,H,(g)=>{
+  const paint=(extra)=>bakeFromCanvas(W,H,(g)=>{
     const big=document.createElement('canvas'); big.width=W*2; big.height=H*2;
-    paintFace(big.getContext('2d'),W*2,H*2,p);
+    paintFace(big.getContext('2d'),W*2,H*2,Object.assign({},p,extra));
     g.drawImage(big,0,0,W,H);
   },8);
+  Art.portraits[id]=paint();
+  if(id[0]==='p') Art.portraitsPain[id]=paint({pain:1}); // party members wince when hit
 }
 const PORTRAIT_DEFS={
   p0:{skin:'#d8a878',hair:1,hairC:'#4a3828',eyes:'#4a6a8a',garb:'#6a5a44',thickBrow:1},                    // Roderic - knight
@@ -1904,6 +1966,15 @@ function bakePaperdolls(){
 }
 
 // ---------- bake driver ----------
+// 1px dark outline around the opaque silhouette — the pre-rendered-sprite edge
+function addOutline(tex,w,h){
+  const out=tex.slice();
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    if(tex[y*w+x]) continue;
+    if((x>0&&tex[y*w+x-1])||(x<w-1&&tex[y*w+x+1])||(y>0&&tex[(y-1)*w+x])||(y<h-1&&tex[(y+1)*w+x])) out[y*w+x]=240;
+  }
+  return out;
+}
 Art.bakeSprites=function(){
   // creatures: assert 1:1 with MONSTERS (the name→id scar)
   for(const mid in MONSTERS){
@@ -1911,13 +1982,17 @@ Art.bakeSprites=function(){
     if(!painter) throw new Error('no sprite painter for monster '+mid);
     const [w,h]=SPRITE_DIMS[mid]||SPRITE_DIMS.default;
     const frames={};
-    for(const f of ['idle','walk','attack','corpse']) frames[f]=bakeFromCanvas(w,h,(g,W,H)=>painter(g,W,H,f),10);
+    for(const f of ['idle','walk','attack','corpse']){
+      let t=bakeFromCanvas(w,h,(g,W,H)=>painter(g,W,H,f),10);
+      if(mid!=='ghost') t=addOutline(t,w,h);
+      frames[f]=t;
+    }
     Art.sprites[mid]={tw:w,th:h,frames};
   }
   for(const k in SPRITE_PAINTERS) if(!MONSTERS[k]) throw new Error('sprite painter without monster stats: '+k);
   for(const k in NPC_PAINTERS){
     const frames={};
-    for(const f of ['idle','walk']) frames[f]=bakeFromCanvas(64,96,(g,W,H)=>NPC_PAINTERS[k](g,W,H,f),10);
+    for(const f of ['idle','walk']) frames[f]=addOutline(bakeFromCanvas(64,96,(g,W,H)=>NPC_PAINTERS[k](g,W,H,f),10),64,96);
     Art.sprites['npc_'+k]={tw:64,th:96,frames};
   }
   for(const k in DECOR_PAINTERS){
@@ -2166,9 +2241,24 @@ const UI = {
   tap(gx,gy){
     for(let i=this.hit.length-1;i>=0;i--){ const r=this.hit[i];
       if(gx>=r.x&&gx<r.x+r.w&&gy>=r.y&&gy<r.y+r.h){ r.cb(gx-r.x,gy-r.y); return true; } }
+    // fat-finger pass: nearest target within 7px of its edge (small targets on phone scale)
+    let best=null,bd=1e9;
+    for(let i=this.hit.length-1;i>=0;i--){ const r=this.hit[i];
+      if(r.w>200||r.h>200) continue; // don't magnetize huge zones like the viewport
+      const dx=Math.max(r.x-gx,0,gx-(r.x+r.w)), dy=Math.max(r.y-gy,0,gy-(r.y+r.h));
+      const d=dx*dx+dy*dy;
+      if(dx<=7&&dy<=7&&d<bd){ bd=d; best=r; } }
+    if(best){ best.cb(gx-best.x,gy-best.y); return true; }
     return false;
   },
   say(text){ this.toast=text; this.toastT=performance.now(); },
+  drawToast(){ // visible on EVERY surface — screens and HUD alike
+    if(!this.toast||performance.now()-this.toastT>2600) return;
+    const E=Engine, w=E.textW(this.toast,11)+24;
+    const x=(SCREEN_W-w)/2|0, y=this.screen?SCREEN_H-46:VP.y+VP.h-40;
+    E.fillRect(x,y,w,22,palIdx(0,2)); E.frameRect(x,y,w,22,palIdx(5,8));
+    E.textC(this.toast,SCREEN_W/2,y+5,{size:11,ramp:5,bright:true});
+  },
 
   // ---------- HUD (drawn every frame over the 3D view) ----------
   drawHUD(){
@@ -2186,7 +2276,7 @@ const UI = {
     const dirs=['E','SE','S','SW','W','NW','N','NE'];
     const di=Math.round(((Game.ang%(2*Math.PI))+2*Math.PI)%(2*Math.PI)/(Math.PI/4))%8;
     E.textC('Facing '+dirs[di],rx+rw/2,62,{size:9,ramp:1});
-    let by=78; const bh=26, bw=rw-4;
+    let by=76; const bh=28, bw=rw-4;
     this.btn(rx,by,bw,bh,'Quests (Q)',()=>UI.open(UI.questScreen())); by+=bh+4;
     this.btn(rx,by,bw,bh,'Spells (B)',()=>UI.open(UI.spellScreen(Game.activePc))); by+=bh+4;
     this.btn(rx,by,bw,bh,'Map (M)',()=>UI.open(UI.mapScreen())); by+=bh+4;
@@ -2213,7 +2303,8 @@ const UI = {
       const pc=P.pcs[i]; if(!pc) continue;
       const x=px0+i*100, y=336;
       const sel=Game.activePc===i;
-      E.blit(Art.portraits[pc.portrait],58,66,x+2,y+2);
+      const wince=pc.painT&&performance.now()-pc.painT<700&&Art.portraitsPain[pc.portrait];
+      E.blit(wince?Art.portraitsPain[pc.portrait]:Art.portraits[pc.portrait],58,66,x+2,y+2);
       E.blit(Art.ui.slot,62,70,x,y);
       if(sel) E.frameRect(x-1,y-1,64,72,palIdx(5,13));
       // condition tint border
@@ -2228,13 +2319,16 @@ const UI = {
       E.textC(pc.name,x+31,y+72,{size:9,ramp:sel?5:0,bright:sel});
       // recovery flash
       if(pc.recovery>0&&pc.cond==='ok'){ E.fillRect(x,y+68,Math.round(62*clamp(pc.recovery/1500,0,1)),2,palIdx(12,8)); }
-      this.tapRect(x,y,80,82,()=>{ Game.activePc=i; Audio2.sfx('click'); });
+      // tap selects; tapping the already-selected hero opens their pack (touch path to inventory)
+      this.tapRect(x,y,80,82,()=>{ if(Game.activePc===i) UI.open(UI.invScreen(i)); else { Game.activePc=i; Audio2.sfx('click'); } });
     }
-    // attack / cast / use buttons (also touch)
-    this.btn(12,436,70,32,'Attack (F)',()=>Game.partyAttack());
-    this.btn(88,436,70,32,'Cast (C)',()=>Game.quickCast());
-    this.btn(164,436,64,32,'Use (Spc)',()=>Game.interact());
+    // attack / cast / use / pack buttons (also touch)
+    this.btn(12,434,66,36,'Attack (F)',()=>Game.partyAttack());
+    this.btn(82,434,60,36,'Cast (C)',()=>Game.quickCast());
+    this.btn(146,434,56,36,'Use (Spc)',()=>Game.interact());
+    this.btn(206,434,56,36,'Pack (I)',()=>UI.open(UI.invScreen()));
     // target + crosshair
+    this.drawToast();
     E.px(VP.x+VP.w/2|0,VP.y+VP.h/2|0,palIdx(5,15));
     const t=Game.currentTarget();
     if(t){ const d=Monsters.def(t.mid);
@@ -2243,10 +2337,6 @@ const UI = {
     // active buffs
     let bx=VP.x+6;
     for(const b in P.buffs){ if(P.buffs[b]&&P.buffs[b].until>Game.clock.min){ E.text(b,bx,VP.y+VP.h-14,{size:9,ramp:8}); bx+=Engine.textW(b,9)+10; } }
-    // toast
-    if(this.toast&&performance.now()-this.toastT<2600){
-      E.textC(this.toast,VP.x+VP.w/2,VP.y+VP.h-34,{size:11,ramp:5,bright:true});
-    }
     // viewport tap = context action (attack monster / interact)
     this.tapRect(VP.x,VP.y,VP.w,VP.h,(lx,ly2)=>Game.viewportTap(lx,ly2));
   },
@@ -2302,7 +2392,12 @@ const UI = {
         E.frameRect(58,98,62,70,palIdx(1,3));
         UI.btn(36,174,50,22,'◄',()=>{ let n=(+d.portrait.slice(1)+7)%8; d.portrait='p'+n; },{size:11});
         UI.btn(92,174,50,22,'►',()=>{ let n=(+d.portrait.slice(1)+1)%8; d.portrait='p'+n; },{size:11});
-        UI.btn(36,202,106,22,'Name: '+d.name,()=>{ d.name=NAMES[(NAMES.indexOf(d.name)+1)%NAMES.length]; },{size:9});
+        UI.btn(36,202,106,22,'Name: '+d.name,()=>{
+          const used=this.drafts.map(x=>x.name);
+          let n=NAMES.indexOf(d.name);
+          do { n=(n+1)%NAMES.length; } while(used.includes(NAMES[n])&&NAMES[n]!==d.name);
+          d.name=NAMES[n];
+        },{size:9});
         // class list
         E.text('Class',170,100,{size:11,ramp:1});
         clsList.forEach((c,ci)=>{
@@ -2314,8 +2409,8 @@ const UI = {
           const y=120+ai*24;
           E.text(a[0].toUpperCase()+a.slice(1),300,y+4,{size:9,ramp:0});
           E.text(''+d.stats[a],394,y+4,{size:11,ramp:15});
-          UI.btn(420,y,22,20,'−',()=>{ if(Rules.canLower(d.cls,d,a)){ d.stats[a]--; d.pool+=Rules.pointCost(d.stats[a]); } },{size:11});
-          UI.btn(446,y,22,20,'+',()=>{ const c=Rules.pointCost(d.stats[a]); if(d.stats[a]<Rules.STAT_MAX&&d.pool>=c){ d.stats[a]++; d.pool-=c; } },{size:11});
+          UI.btn(414,y-1,28,22,'−',()=>{ if(Rules.canLower(d.cls,d,a)){ d.stats[a]--; d.pool+=Rules.pointCost(d.stats[a]); } },{size:11});
+          UI.btn(448,y-1,28,22,'+',()=>{ const c=Rules.pointCost(d.stats[a]); if(d.stats[a]<Rules.STAT_MAX&&d.pool>=c){ d.stats[a]++; d.pool-=c; } },{size:11});
         });
         // class info
         const cl=CLASSES[d.cls];
@@ -2348,14 +2443,20 @@ const UI = {
         // paperdoll + equip
         E.blit(Art.paperdolls.male,92,150,48,92);
         E.frameRect(46,90,96,154,palIdx(1,3));
-        const slots=[['weapon',150,96],['shield',150,126],['armor',150,156],['helm',150,186],['boots',150,216],['ring1',48,250],['ring2',96,250],['amulet',144,250]];
-        for(const [slot,sx,sy] of slots){
+        // gear worn on the doll itself (helm/armor/boots/weapon/shield)
+        const dollAnchors={helm:[82,96],armor:[82,148],boots:[82,204],weapon:[118,146],shield:[56,146]};
+        for(const slot in dollAnchors){ const it=pc.equip[slot];
+          if(it){ const [ax,ay]=dollAnchors[slot]; E.blit(Art.icons[ITEMS[it.id].icon],24,24,ax,ay); } }
+        const slots=[['weapon','Wpn',150,96],['shield','Off',150,126],['armor','Arm',150,156],['helm','Helm',150,186],['boots','Feet',150,216],['ring1','Ring',48,250],['ring2','Ring',96,250],['amulet','Neck',144,250]];
+        for(const [slot,label,sx,sy] of slots){
           E.fillRect(sx,sy,26,26,palIdx(1,5)); E.frameRect(sx,sy,26,26,palIdx(1,3));
           const it=pc.equip[slot];
           if(it) E.blit(Art.icons[ITEMS[it.id].icon],24,24,sx+1,sy+1);
+          if(sy===250) E.textC(label,sx+13,sy-11,{size:9,ramp:1});
+          else E.text(label,sx+30,sy+9,{size:9,ramp:1});
           UI.tapRect(sx,sy,26,26,()=>{ if(pc.equip[slot]){ Game.unequip(pi,slot); selItem=-1; } });
         }
-        E.text('tap gear to unequip',46,282,{size:9,ramp:0});
+        E.text('tap worn gear to unequip',46,282,{size:9,ramp:0});
         // stats (all rules-derived)
         const eq=Object.values(pc.equip).map(Items.def);
         E.text('HP '+pc.hp+'/'+Rules.maxHP(pc)+'   SP '+pc.sp+'/'+Rules.maxSP(pc),46,300,{size:11,ramp:2});
@@ -2408,7 +2509,12 @@ const UI = {
         UI.chrome(pc.name+' — Spellbook');
         for(let i=0;i<4;i++) UI.btn(60+i*90,52,84,22,P.pcs[i].name,()=>{ pi=i; school=null; },{size:9,down:pi===i});
         const schools=CLASSES[pc.cls].schools;
-        if(!schools.length){ E.textC(pc.name+' follows the way of steel — no spellbook.',SCREEN_W/2,200,{size:11,ramp:1}); return; }
+        if(!schools.length){
+          E.textC(pc.name+' follows the way of steel — no spellbook.',SCREEN_W/2,170,{size:11,ramp:1});
+          E.textC('Arms mastered: '+Object.keys(pc.skills).filter(s=>SKILLS[s].type==='weapon'||SKILLS[s].type==='armor').map(s=>SKILLS[s].name+' '+pc.skills[s]).join(',  '),SCREEN_W/2,200,{size:9,ramp:0});
+          E.textC('Steel keeps its own counsel. It has never once run out of spell points.',SCREEN_W/2,228,{size:9,ramp:11});
+          return;
+        }
         if(!school) school=schools[0];
         schools.forEach((s,si)=>UI.btn(46+si*84,88,80,24,SKILLS[s].name.replace(' Magic',''),()=>{ school=s; },{size:9,down:school===s}));
         E.text('SP: '+pc.sp+'/'+Rules.maxSP(pc)+'    '+SKILLS[school].name+' skill: '+(pc.skills[school]||0)+' ('+Rules.skillTier(pc.skills[school]||0)+')',46,124,{size:11,ramp:3});
@@ -2475,13 +2581,18 @@ const UI = {
           let col=c? (c===7||c===9?palIdx(1,6):palIdx(0,4)) : f===6?palIdx(3,6): f===1?palIdx(1,7): f===2?palIdx(0,8): m.outdoor?palIdx(2,6):palIdx(11,6);
           E.fillRect(ox+x2*cs,oy+y2*cs,cs,cs,col);
         }
-        for(const s of m.shops){ if(ex[s.y*m.w+s.x]) E.fillRect(ox+s.x*cs,oy+s.y*cs,cs,cs,palIdx(5,10)); }
+        const shopLetter={weapon:'W',armor:'A',guild:'G',tavern:'V',temple:'T',train:'R',bank:'B',hall:'H'};
+        for(const s of m.shops){ if(ex[s.y*m.w+s.x]){
+          E.fillRect(ox+s.x*cs-1,oy+s.y*cs-1,cs+2,cs+2,palIdx(5,10));
+          if(cs>=3) E.text(shopLetter[s.shop],ox+s.x*cs+cs+1,oy+s.y*cs-3,{size:9,ramp:5,bright:true});
+        }}
         // player arrow
         const px2=ox+Game.px*cs, py2=oy+Game.py*cs;
         E.fillRect(px2-2|0,py2-2|0,5,5,palIdx(14,10));
         const dx=Math.cos(Game.ang)*6, dy=Math.sin(Game.ang)*6;
         E.fillRect(px2+dx-1|0,py2+dy-1|0,3,3,palIdx(5,14));
-        E.textC('gold = shops    red = you',SCREEN_W/2,SCREEN_H-24,{size:9,ramp:0});
+        E.text('N ↑',SCREEN_W-70,60,{size:11,ramp:5,bright:true});
+        E.textC('W weapons · A armor · G guild · V tavern · T temple · R training · B bank · H hall     red = you',SCREEN_W/2,SCREEN_H-24,{size:9,ramp:0});
       }
     };
   },
@@ -2596,7 +2707,7 @@ const UI = {
             UI.btn(150,my,200,28,'Rest the night — '+(P.perks.freerest?'free!':Rules.tavernRestCost(P.pcs.reduce((s,p)=>s+p.level,0))+' gold'),()=>Game.tavernRest(),{size:9});
             UI.btn(150,my+34,200,28,'Hear the gossip',()=>{ mode='talk'; },{size:9});
             if(mode==='talk') UI.wrapText(NPCS.tavernkeep.rumor,150,my+76,400,11);
-            this.buySell(SHOP_STOCK.tavern,merch,my+110);
+            this.buySell(SHOP_STOCK.tavern,merch,my+150,6);
             break;
           }
           case 'temple': {
@@ -2611,15 +2722,26 @@ const UI = {
           }
           case 'train': {
             const pc=P.pcs[selPc];
-            E.text(pc.name+' — level '+pc.level+'   XP '+pc.xp+'/'+Rules.xpForLevel(pc.level+1),150,my,{size:11,ramp:0});
+            const need=Rules.xpForLevel(pc.level+1);
+            E.text(pc.name+' — level '+pc.level+'   XP '+pc.xp+(Rules.canTrain(pc)?'  (ready to train!)':' / '+need),150,my,{size:11,ramp:Rules.canTrain(pc)?5:0});
             if(Rules.canTrain(pc)) UI.btn(150,my+20,280,28,'Train to level '+(pc.level+1)+' — '+Rules.trainCost(pc.level)+' gold',()=>Game.trainPc(selPc),{size:9});
-            else E.text('Come back with more experience.',150,my+26,{size:9,ramp:0});
+            else E.text('Come back with more experience — the yard teaches nothing to the unbloodied.',150,my+26,{size:9,ramp:0});
             // skill training
-            E.text('Skill instruction ('+pc.skillPoints+' skill points):',150,my+60,{size:9,ramp:1});
+            const canRaise=pc.skillPoints>0;
+            E.text('Skill instruction — '+pc.skillPoints+' skill point'+(pc.skillPoints===1?'':'s')+(canRaise?':':' (train a level to earn more)'),150,my+60,{size:9,ramp:canRaise?1:11});
             let yy=my+78; let n=0;
             for(const sk in pc.skills){ if(n++>7) break;
-              UI.btn(150,yy,220,22,SKILLS[sk].name+' '+pc.skills[sk]+' → '+(pc.skills[sk]+1)+'  (1 pt)',()=>Game.raiseSkill(selPc,sk),{size:9});
+              const tierNext=Rules.skillTier(pc.skills[sk]+1);
+              if(canRaise) UI.btn(150,yy,250,22,SKILLS[sk].name+' '+pc.skills[sk]+' → '+(pc.skills[sk]+1)+(tierNext!==Rules.skillTier(pc.skills[sk])?'  ('+tierNext+'!)':''),()=>Game.raiseSkill(selPc,sk),{size:9});
+              else E.text(SKILLS[sk].name+' '+pc.skills[sk]+' ('+Rules.skillTier(pc.skills[sk])+')',160,yy+5,{size:9,ramp:11}),UI.tapRect(150,yy,250,22,()=>{});
               yy+=26;
+            }
+            // learn new class-legal skills
+            const learnable=Object.keys(SKILLS).filter(sk=>!pc.skills[sk]&&Rules.canLearnSkill(pc.cls,sk)).slice(0,4);
+            if(learnable.length){
+              E.text('New instruction — '+Rules.SKILL_LEARN_COST+'g each:',430,my+60,{size:9,ramp:1});
+              let ly=my+78;
+              for(const sk of learnable){ UI.btn(430,ly,170,22,'Learn '+SKILLS[sk].name,()=>Game.learnSkill(selPc,sk),{size:9,ramp:P.gold>=Rules.SKILL_LEARN_COST?5:11}); ly+=26; }
             }
             break;
           }
@@ -2634,45 +2756,60 @@ const UI = {
           case 'guild': {
             const pc=P.pcs[selPc];
             E.text(pc.name+'  SP '+pc.sp+'/'+Rules.maxSP(pc),150,my-6,{size:9,ramp:3});
-            let yy=my+12, n=0;
+            let yy=my+12, n=0, more=0;
             for(const id in SPELLS){ const s=SPELLS[id];
               if(!CLASSES[pc.cls].schools.includes(s.school)) continue;
               if(pc.spells.includes(id)) continue;
-              if(n++>6) break;
+              if(n>=5){ more++; continue; }
+              n++;
               const price=Rules.buyPrice(Spellcraft.guildPrice(id),merch);
-              UI.btn(150,yy,320,24,s.name+' ('+SKILLS[s.school].name.replace(' Magic','')+' '+(s.req>=7?'M':s.req>=4?'E':'N')+') — '+price+'g',()=>Game.buySpell(selPc,id,price),{size:9});
+              const afford=P.gold>=price;
+              UI.btn(150,yy,330,24,s.name+' ('+SKILLS[s.school].name.replace(' Magic','')+' '+(s.req>=7?'Mastery':s.req>=4?'Expert':'Novice')+') — '+price+'g',()=>Game.buySpell(selPc,id),{size:9,ramp:afford?5:11});
               yy+=28;
             }
-            if(!n) E.text('No further mysteries for this pupil.',150,yy,{size:9,ramp:0});
-            this.buySell(SHOP_STOCK.guild,merch,yy+10);
+            if(!n) E.text('No further mysteries for this pupil.',150,yy+4,{size:9,ramp:0}),yy+=20;
+            if(more) E.text('…'+more+' more once these are learned.',150,yy+2,{size:9,ramp:0});
+            this.buySell(SHOP_STOCK.guild,merch,332,6);
             break;
           }
         }
       },
-      buySell(stock,merch,y0){
-        const E=Engine,P=Game.party;
-        E.text('Wares (tap to buy)',150,y0,{size:9,ramp:1});
+      buySell(stock,merch,y0,maxSell){
+        const E=Engine,P=Game.party,self=this;
+        E.text('Wares — tap to inspect, tap again to buy',150,y0,{size:9,ramp:1});
         stock.forEach((id,i)=>{
           const x=150+(i%6)*56, y=y0+14+((i/6)|0)*56;
           const d=ITEMS[id], price=Rules.buyPrice(d.price,merch);
-          E.fillRect(x,y,52,40,palIdx(1,6)); E.frameRect(x,y,52,40,palIdx(1,3));
+          const sel=self.selWare===id;
+          E.fillRect(x,y,52,40,palIdx(1,sel?9:6)); E.frameRect(x,y,52,40,palIdx(sel?5:1,sel?9:3));
           E.blit(Art.icons[d.icon],24,24,x+14,y+2);
           E.textC(price+'g',x+26,y+28,{size:9,ramp:P.gold>=price?5:14});
-          UI.tapRect(x,y,52,40,()=>Game.buyItem(id,price));
+          UI.tapRect(x,y,52,40,()=>{ if(self.selWare===id){ Game.buyItem(id); self.selWare=null; } else { self.selWare=id; Audio2.sfx('click'); } });
         });
-        const sellY=y0+14+Math.ceil(stock.length/6)*56+6;
-        E.text('Your goods (tap to sell)',150,sellY,{size:9,ramp:1});
-        let n=0;
+        // inspect line for selected ware
+        const infoY=y0+14+Math.ceil(stock.length/6)*56+2;
+        if(this.selWare&&ITEMS[this.selWare]){
+          const d=ITEMS[this.selWare];
+          let inf=d.name;
+          if(d.slot==='weapon') inf+='  —  '+d.dn+'d'+d.dd+(d.dp?'+'+d.dp:'')+' ['+SKILLS[d.skill].name+']';
+          else if(d.ac) inf+='  —  AC +'+d.ac+(d.skill?' ['+SKILLS[d.skill].name+']':'');
+          else if(d.stat) inf+='  —  +'+d.statPlus+' '+d.stat;
+          else if(d.use) inf+='  —  '+(d.use==='heal'?'restores health':d.use==='mana'?'restores spell points':'cures ailments');
+          E.text(inf+'   (tap again to buy)',150,infoY,{size:9,ramp:5,bright:true});
+        }
+        const sellY=infoY+14;
+        E.text('Your goods (tap to sell) — '+P.pcs[Game.activePc].name+'’s pack',150,sellY,{size:9,ramp:1});
+        let n=0; const cap=maxSell||12;
         const pc=P.pcs[Game.activePc];
         pc.items.forEach((it,ii)=>{
-          if(!it||n>=12) return; const d=ITEMS[it.id];
+          if(!it||n>=cap) return; const d=ITEMS[it.id];
           if(d.slot==='quest') return;
           const x=150+(n%6)*56, y=sellY+14+((n/6)|0)*56;
           const price=Rules.sellPrice(Items.basePrice(it),merch);
           E.fillRect(x,y,52,40,palIdx(9,4)); E.frameRect(x,y,52,40,palIdx(1,3));
           E.blit(Art.icons[d.icon],24,24,x+14,y+2);
           E.textC('+'+price+'g',x+26,y+28,{size:9,ramp:2});
-          UI.tapRect(x,y,52,40,()=>Game.sellItem(Game.activePc,ii,price));
+          UI.tapRect(x,y,52,40,()=>Game.sellItem(Game.activePc,ii));
           n++;
         });
         if(!n) E.text('(nothing to sell — the active hero’s pack is empty)',150,sellY+18,{size:9,ramp:11});
@@ -2779,6 +2916,7 @@ const Game = {
     this.stats={kills:0,goldEarned:0}; this.activePc=0; this.turnBased=false;
     this.graceUntilInput=true; this.victoryShown=false;
     this.ensureExplored(); this.markExplored();
+    this.exploreRect(29,30,37,16); // home town is known ground from day one
     this.state='play'; UI.close();
     Log.lines.length=0;
     Log.add('Vintavia, at last. The mayor is said to pay for bold hands.');
@@ -2812,14 +2950,16 @@ const Game = {
     cv.addEventListener('touchstart',down,{passive:false}); cv.addEventListener('touchmove',move,{passive:false}); addEventListener('touchend',up,{passive:false});
     this.initTouchPads();
   },
+  _pads:[],
+  padVisibility(on){ for(const p of this._pads) p.style.display=on?'':'none'; },
   initTouchPads(){
     if(!('ontouchstart' in window)) return;
     const mk=(css)=>{ const d=document.createElement('div'); Object.assign(d.style,{position:'fixed',zIndex:10,userSelect:'none',webkitUserSelect:'none',touchAction:'none',
       fontFamily:'Georgia,serif',color:'#d8c890',textAlign:'center',
       background:'radial-gradient(circle at 35% 30%, #5a564e, #37342e 70%)',border:'2px solid #201e1a',boxShadow:'inset 0 1px 0 #7a766c, 0 2px 6px #000a',...css});
       document.body.appendChild(d); return d; };
-    // left: joystick (safe-area aware)
-    const joy=mk({left:'calc(env(safe-area-inset-left, 0px) + 14px)',bottom:'18px',width:'118px',height:'118px',borderRadius:'50%',opacity:0.85});
+    // left: joystick (safe-area aware, clear of home indicator)
+    const joy=mk({left:'calc(env(safe-area-inset-left, 0px) + 14px)',bottom:'calc(env(safe-area-inset-bottom, 0px) + 18px)',width:'118px',height:'118px',borderRadius:'50%',opacity:0.85});
     const nub=mk({left:'0',top:'0',width:'52px',height:'52px',borderRadius:'50%',opacity:0.95,position:'absolute',background:'radial-gradient(circle at 35% 30%, #8a8478, #4a463e 70%)'});
     joy.appendChild(nub); nub.style.left='33px'; nub.style.top='33px';
     const setJoy=(dx,dy)=>{ const m=Math.hypot(dx,dy)||1, c=Math.min(m,42);
@@ -2829,15 +2969,26 @@ const Game = {
     joy.addEventListener('touchmove',e=>{ const t=e.touches[0], r=joy.getBoundingClientRect();
       setJoy(t.clientX-(r.left+59),t.clientY-(r.top+59)); e.preventDefault(); },{passive:false});
     joy.addEventListener('touchend',e=>{ setJoy(0,0); this.moveJoy={x:0,y:0}; e.preventDefault(); },{passive:false});
-    // right: action buttons ≥ 44pt
-    const mkBtn=(label,bottom,cb)=>{ const b=mk({right:'calc(env(safe-area-inset-right, 0px) + 14px)',bottom,width:'86px',height:'48px',borderRadius:'10px',lineHeight:'48px',fontSize:'15px'});
+    // right: action buttons ≥ 44pt, above the home indicator
+    const mkBtn=(label,off,cb)=>{ const b=mk({right:'calc(env(safe-area-inset-right, 0px) + 14px)',bottom:'calc(env(safe-area-inset-bottom, 0px) + '+off+'px)',width:'86px',height:'48px',borderRadius:'10px',lineHeight:'48px',fontSize:'15px'});
       b.textContent=label;
       b.addEventListener('touchstart',e=>{ Audio2.unlock(); b.style.filter='brightness(1.3)'; cb(); e.preventDefault(); },{passive:false});
       b.addEventListener('touchend',e=>{ b.style.filter=''; e.preventDefault(); },{passive:false});
       return b; };
-    mkBtn('Attack','18px',()=>this.press('attack'));
-    mkBtn('Use','76px',()=>this.press('interact'));
-    mkBtn('Cast','134px',()=>this.press('cast'));
+    this._pads=[joy,
+      mkBtn('Attack',18,()=>this.press('attack')),
+      mkBtn('Use',76,()=>this.press('interact')),
+      mkBtn('Cast',134,()=>this.press('cast')),
+      mkBtn('Pack',192,()=>this.press('inventory'))];
+    this.padVisibility(false); // shown only in play, outside screens
+    // portrait-orientation hint
+    const hint=document.createElement('div');
+    Object.assign(hint.style,{position:'fixed',inset:'0',zIndex:20,display:'none',alignItems:'center',justifyContent:'center',
+      background:'rgba(10,9,8,0.88)',color:'#d8c890',font:'20px Georgia',textAlign:'center'});
+    hint.innerHTML='Turn your phone sideways ⟳<br><span style="font-size:13px;color:#8a8478">Vintavia is played in landscape</span>';
+    document.body.appendChild(hint);
+    const orient=()=>{ hint.style.display=(innerHeight>innerWidth)?'flex':'none'; };
+    addEventListener('resize',orient); orient();
   },
   userActed(){ if(this.graceUntilInput){ this.graceUntilInput=false; } },
   press(action){ // single consumer per action — also the test/touch entry point
@@ -2871,6 +3022,8 @@ const Game = {
     requestAnimationFrame(t=>this.loop(t));
     const dt=Math.min(50,now-(this._last||now)); this._last=now;
     Art.tick(now);
+    const padsOn=this.state==='play'&&!UI.screen;
+    if(padsOn!==this._padsOn){ this._padsOn=padsOn; this.padVisibility(padsOn); }
     if(this.state==='play'&&!UI.screen){
       const simDt=this.turnBased? Math.min(dt,this.tbBudget):dt;
       if(simDt>0){ this.update(simDt); if(this.turnBased) this.tbBudget-=simDt; }
@@ -2971,6 +3124,8 @@ const Game = {
     }};
   },
   ensureExplored(){ if(!this.explored[this.mapId]){ const m=World.maps[this.mapId]; this.explored[this.mapId]=new Uint8Array(m.w*m.h); } },
+  exploreRect(x0,y0,w,h){ const m=World.maps[this.mapId], ex=this.explored[this.mapId];
+    for(let y=Math.max(0,y0);y<Math.min(m.h,y0+h);y++) for(let x=Math.max(0,x0);x<Math.min(m.w,x0+w);x++) ex[y*m.w+x]=1; },
   markExplored(){
     const m=World.maps[this.mapId], ex=this.explored[this.mapId];
     const cx=this.px|0, cy=this.py|0;
@@ -3016,6 +3171,16 @@ const Game = {
         }
       }
       if(calm){ m.state='idle'; continue; }
+      // wounded beasts break and run (bosses and the dead don't fear)
+      if(m.hp<d.hp*0.22&&!d.boss&&!d.und&&!m.rallied){
+        if(!m.fleeing&&r.chance(0.7)) m.fleeing=true; else if(!m.fleeing) m.rallied=true;
+        if(m.fleeing){
+          const away=angTo(this.px,this.py,m.x,m.y);
+          this.moveMonster(m,Math.cos(away)*d.spd*1.15*s,Math.sin(away)*d.spd*1.15*s);
+          if(distP>d.aggro*1.6){ m.state='idle'; m.fleeing=false; }
+          continue;
+        }
+      }
       // chase behavior
       const ang=angTo(m.x,m.y,this.px,this.py);
       const wantRange=d.ai==='melee'?1.0:5.0;
@@ -3068,6 +3233,7 @@ const Game = {
   },
   damagePc(pc,dmg,srcName){
     pc.hp-=dmg;
+    pc.painT=performance.now();
     Audio2.sfx('hurt');
     Log.add(srcName+' hits '+pc.name+' for '+dmg+'.',palIdx(14,10));
     this.hurtFlash=performance.now();
@@ -3247,6 +3413,15 @@ const Game = {
     const map=World.maps[this.mapId];
     const fx=this.px+Math.cos(this.ang)*1.0, fy=this.py+Math.sin(this.ang)*1.0;
     const fc={x:fx|0,y:fy|0};
+    // the cell you FACE always wins: doors and shopfronts beat nearby chatter
+    for(const s of map.shops){ if(fc.x===s.x&&fc.y===s.y){ Audio2.sfx('door'); UI.open(UI.shopScreen(s.shop)); return; } }
+    if(map.doors[fc.x+','+fc.y]){
+      const d=map.doors[fc.x+','+fc.y];
+      if(d.needs&&!this.partyHasItem(d.needs)){ UI.say('A sigil-shaped hollow glows. Something is missing.'); Audio2.sfx('error'); return; }
+      if(d.needs&&!d.open) Log.add('The Vault Sigil flares — the seal breaks!',palIdx(8,13));
+      d.open=!d.open; Audio2.sfx('door'); return;
+    }
+    for(const p of map.portals){ if(fc.x===p.x&&fc.y===p.y&&p.to){ this.transition(p.to,p.tx,p.ty); return; } }
     // corpse loot (nearest within 1.8)
     let corpse=null,cd=1.8*1.8;
     for(const c of this.corpses){ if(c.mapId!==this.mapId||c.looted) continue;
@@ -3272,27 +3447,15 @@ const Game = {
         return;
       }
     }
-    // npc
+    // npc (only when not facing a door)
     for(const n of map.npcs){
       if(dist2(n.x,n.y,this.px,this.py)<2.2*2.2){ UI.open(UI.dialogScreen(n.id)); return; }
     }
-    // shop door (by facing cell or adjacent)
+    // shop door by adjacency (walked up beside it)
     for(const s of map.shops){
-      if((Math.abs(s.x+0.5-this.px)<1.6&&Math.abs(s.y+0.5-this.py)<1.6)||((fc.x===s.x)&&(fc.y===s.y))){
+      if(Math.abs(s.x+0.5-this.px)<1.6&&Math.abs(s.y+0.5-this.py)<1.6){
         Audio2.sfx('door'); UI.open(UI.shopScreen(s.shop)); return;
       }
-    }
-    // door
-    const dk=fc.x+','+fc.y;
-    if(map.doors[dk]){
-      const d=map.doors[dk];
-      if(d.needs&&!this.partyHasItem(d.needs)){ UI.say('A sigil-shaped hollow glows. Something is missing.'); Audio2.sfx('error'); return; }
-      if(d.needs&&!d.open) Log.add('The Vault Sigil flares — the seal breaks!',palIdx(8,13));
-      d.open=!d.open; Audio2.sfx('door'); return;
-    }
-    // portal by facing (crypt entrance etc.)
-    for(const p of map.portals){
-      if(fc.x===p.x&&fc.y===p.y&&p.to){ this.transition(p.to,p.tx,p.ty); return; }
     }
     UI.say('Nothing here answers.');
   },
@@ -3375,8 +3538,10 @@ const Game = {
     if(d.use==='cure'){ if(d.cures.includes(pc.cond)) pc.cond='ok'; Log.add(pc.name+' is purged of ills.',palIdx(2,12)); Audio2.sfx('heal'); }
     pc.items[idx]=null;
   },
-  buyItem(id,price){
+  bestMerchant(){ return Math.max(...this.party.pcs.map(pc=>pc.skills.merchant||0)); },
+  buyItem(id){ // price ALWAYS recomputed from Rules — UI-passed prices are display-only
     const P=this.party;
+    const price=Rules.buyPrice(ITEMS[id].price,this.bestMerchant());
     if(P.gold<price){ UI.say('Not enough gold.'); Audio2.sfx('error'); return; }
     const it=Items.make(id);
     if(!this.giveItem(it)){ UI.say('All packs are full.'); Audio2.sfx('error'); return; }
@@ -3384,13 +3549,15 @@ const Game = {
     Log.add('Bought '+ITEMS[id].name+' for '+price+'g.');
     this.onQuestItemsChanged();
   },
-  sellItem(pi,idx,price){
+  sellItem(pi,idx){
     const pc=this.party.pcs[pi]; const it=pc.items[idx]; if(!it) return;
+    const price=Rules.sellPrice(Items.basePrice(it),this.bestMerchant());
     pc.items[idx]=null; this.party.gold+=price; this.stats.goldEarned+=price;
     Audio2.sfx('coin'); Log.add('Sold '+Items.displayName(it)+' for '+price+'g.');
   },
-  buySpell(pi,id,price){
+  buySpell(pi,id){
     const P=this.party, pc=P.pcs[pi];
+    const price=Rules.buyPrice(Spellcraft.guildPrice(id),this.bestMerchant());
     if(P.gold<price){ UI.say('Not enough gold.'); Audio2.sfx('error'); return; }
     P.gold-=price; pc.spells.push(id);
     Audio2.sfx('levelup'); Log.add(pc.name+' learns '+SPELLS[id].name+'!',palIdx(6,13));
@@ -3421,6 +3588,13 @@ const Game = {
     Audio2.sfx('levelup');
     Log.add(pc.name+' reaches level '+pc.level+'! (+5 skill points)',palIdx(5,13));
   },
+  learnSkill(pi,sk){
+    const P=this.party, pc=P.pcs[pi];
+    if(!Rules.canLearnSkill(pc.cls,sk)||pc.skills[sk]){ return; }
+    if(P.gold<Rules.SKILL_LEARN_COST){ UI.say('Instruction costs '+Rules.SKILL_LEARN_COST+' gold.'); Audio2.sfx('error'); return; }
+    P.gold-=Rules.SKILL_LEARN_COST; pc.skills[sk]=1;
+    Audio2.sfx('levelup'); Log.add(pc.name+' learns the basics of '+SKILLS[sk].name+'.',palIdx(8,12));
+  },
   raiseSkill(pi,sk){
     const pc=this.party.pcs[pi];
     if(pc.skillPoints<1){ UI.say('No skill points — train a level first.'); Audio2.sfx('error'); return; }
@@ -3443,8 +3617,11 @@ const Game = {
     if(hours>0){
       for(const pc of this.party.pcs){
         if(pc.cond==='poisoned'||pc.cond==='diseased'){
-          pc.hp-=Rules.poisonTick(pc)*hours;
-          if(pc.hp<=0){ pc.hp=0; if(pc.cond!=='dead'){ Log.add(pc.name+' succumbs to sickness!',palIdx(14,12)); pc.cond='unconscious'; } }
+          // sickness grinds hp to the floor but never converts to unconscious —
+          // converting would let rest launder poison into a free full cure
+          const was=pc.hp;
+          pc.hp=Math.max(0,pc.hp-Rules.poisonTick(pc)*hours);
+          if(pc.hp===0&&was>0) Log.add(pc.name+' is fading — find a healer!',palIdx(14,12));
         }
       }
       // buff expiry
@@ -3584,8 +3761,8 @@ const Game = {
   // ---------- draw ----------
   draw(now){
     const E=Engine;
-    if(this.state==='title'||this.state==='boot'){ if(UI.screen){ UI.hit=[]; UI.screen.draw(); } E.present(); return; }
-    if(UI.screen){ UI.hit=[]; UI.screen.draw(); E.present(); return; }
+    if(this.state==='title'||this.state==='boot'){ if(UI.screen){ UI.hit=[]; UI.screen.draw(); UI.drawToast(); } E.present(); return; }
+    if(UI.screen){ UI.hit=[]; UI.screen.draw(); UI.drawToast(); E.present(); return; }
     // 3D view
     const map=World.maps[this.mapId];
     const light= map.outdoor? Clock.lightLevel(this.clock.min) : (map.dungeonLight||0.3);
@@ -3617,8 +3794,10 @@ const Game = {
       let frame='idle';
       if(m.attackT&&now-m.attackT<420) frame='attack';
       else if(m.state==='chase') frame=wob(m)?'walk':'idle';
-      ents.push({x:m.x,y:m.y,tex:sp.frames[frame],tw:sp.tw,th:sp.th,scale:d.scale,ghost:m.mid==='ghost',
-        shade:m.hurtT&&now-m.hurtT<140?-3:0});
+      const breathe=Math.sin(now/620+(m.homeX*7+m.homeY*3))*0.006; // idle life
+      ents.push({x:m.x,y:m.y,tex:sp.frames[frame],tw:sp.tw,th:sp.th,scale:d.scale+breathe,ghost:m.mid==='ghost',
+        vOff:m.mid==='ghost'?Math.sin(now/480+m.homeX)*0.03-0.05:0,
+        shade:(m.hurtT&&now-m.hurtT<140?-3:0)+(m.mid==='ghost'?-4:0)});
     }
     for(const c of this.corpses){
       if(c.mapId!==this.mapId||c.looted) continue;
@@ -3636,7 +3815,8 @@ const Game = {
       if(dc.kind==='brazier'&&flick) key='decor_brazier_b';
       if(dc.kind==='tree'&&((dc.x*7+dc.y*13)|0)%2) key='decor_tree2';
       const sp=Art.sprites[key]; if(!sp) continue;
-      ents.push({x:dc.x,y:dc.y,tex:sp.frames.idle,tw:sp.tw,th:sp.th,scale:dc.kind.startsWith('tree')?1.35:0.9});
+      const dscale=dc.kind.startsWith('tree')?1.6:dc.kind==='cryptgate'?1.5:0.9;
+      ents.push({x:dc.x,y:dc.y,tex:sp.frames.idle,tw:sp.tw,th:sp.th,scale:dscale});
     }
     for(const ch of map.chests){
       const opened=this.flags.chests[this.mapId+':'+ch.id];
@@ -3706,7 +3886,10 @@ const Debug = {
       'audio: '+(Audio2.started?('running, state '+Audio2.ctx.state):'not started'),
       'storage: '+(function(){try{localStorage.setItem('_t','1');localStorage.removeItem('_t');return 'ok';}catch(e){return 'BLOCKED: '+e.name;}})(),
       'game state: '+Game.state+'  map: '+Game.mapId+'  pos: '+(Game.px||0).toFixed(1)+','+(Game.py||0).toFixed(1),
-      'safe-area: '+getComputedStyle(document.documentElement).getPropertyValue('--sat'),
+      'safe-area L/R/B: '+(function(){ const d=document.createElement('div');
+        d.style.cssText='position:fixed;padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);padding-bottom:env(safe-area-inset-bottom,0px);visibility:hidden';
+        document.body.appendChild(d); const cs=getComputedStyle(d);
+        const v=cs.paddingLeft+' / '+cs.paddingRight+' / '+cs.paddingBottom; d.remove(); return v; })(),
       'errors: '+(this.errors.length?'\n'+this.errors.join('\n'):'none'),
     ];
     return lines.join('\n');
@@ -3767,7 +3950,7 @@ window.__game={
   tap(x,y){ Game.tapAt(x,y); },
   save(slot){ return Game.save(slot||'manual'); },
   load(slot){ return Game.load(slot||'manual'); },
-  give(id){ return Game.giveItem(Items.make(id)); },
+  give(id){ const ok=Game.giveItem(Items.make(id)); Game.onQuestItemsChanged(); return ok; },
   gold(n){ Game.party.gold+=n; return Game.party.gold; },
   step(ms){ Game.update(Math.min(1000,ms||100)); },
   acceptQuest(q){ Game.acceptQuest(q); },

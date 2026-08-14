@@ -508,6 +508,13 @@ const UI = {
               else E.text(SKILLS[sk].name+' '+pc.skills[sk]+' ('+Rules.skillTier(pc.skills[sk])+')',160,yy+5,{size:9,ramp:11}),UI.tapRect(150,yy,250,22,()=>{});
               yy+=26;
             }
+            // learn new class-legal skills
+            const learnable=Object.keys(SKILLS).filter(sk=>!pc.skills[sk]&&Rules.canLearnSkill(pc.cls,sk)).slice(0,4);
+            if(learnable.length){
+              E.text('New instruction — '+Rules.SKILL_LEARN_COST+'g each:',430,my+60,{size:9,ramp:1});
+              let ly=my+78;
+              for(const sk of learnable){ UI.btn(430,ly,170,22,'Learn '+SKILLS[sk].name,()=>Game.learnSkill(selPc,sk),{size:9,ramp:P.gold>=Rules.SKILL_LEARN_COST?5:11}); ly+=26; }
+            }
             break;
           }
           case 'bank': {

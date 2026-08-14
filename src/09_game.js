@@ -729,6 +729,13 @@ const Game = {
     Audio2.sfx('levelup');
     Log.add(pc.name+' reaches level '+pc.level+'! (+5 skill points)',palIdx(5,13));
   },
+  learnSkill(pi,sk){
+    const P=this.party, pc=P.pcs[pi];
+    if(!Rules.canLearnSkill(pc.cls,sk)||pc.skills[sk]){ return; }
+    if(P.gold<Rules.SKILL_LEARN_COST){ UI.say('Instruction costs '+Rules.SKILL_LEARN_COST+' gold.'); Audio2.sfx('error'); return; }
+    P.gold-=Rules.SKILL_LEARN_COST; pc.skills[sk]=1;
+    Audio2.sfx('levelup'); Log.add(pc.name+' learns the basics of '+SKILLS[sk].name+'.',palIdx(8,12));
+  },
   raiseSkill(pi,sk){
     const pc=this.party.pcs[pi];
     if(pc.skillPoints<1){ UI.say('No skill points — train a level first.'); Audio2.sfx('error'); return; }

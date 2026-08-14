@@ -256,13 +256,19 @@ Art.bakeFont=function(){
     }
     font.sizes[sz]=glyphs;
   }
-  font.width=(str,size)=>{ const gs=font.sizes[size]||font.sizes[11]; let w=0; for(const ch of str){ const gl=gs[ch]||gs['?']; w+=gl.adv; } return w; };
+  font.width=(str,size)=>{ const gs=font.sizes[size]||font.sizes[11]; let w=0; for(const ch of str){ if(ch===':'){w+=5;continue;} const gl=gs[ch]||gs['?']; w+=gl.adv; } return w; };
   const FALLBACK={'’':"'",'‘':"'",'“':'"','”':'"','—':'-','–':'-','−':'-','…':'...'};
   font.draw=(eng,str,x,y,opts)=>{
     const size=opts.size||11, ramp=opts.ramp===undefined?5:opts.ramp, gs=font.sizes[size]||font.sizes[11];
     const shades=opts.bright? [0,9,12,15]:[0,7,10,13];
     let cx=x|0;
     for(const ch of str){
+      if(ch===':'){ // hand-placed: quantization eats the top dot at small sizes
+        const dotY1=(y|0)+Math.round(size*0.38), dotY2=(y|0)+Math.round(size*0.82), c=palIdx(ramp,shades[3]);
+        for(const dy of [dotY1,dotY2]){ if(opts.shadow!==false){eng.px(cx+2,dy+1,240);eng.px(cx+3,dy+1,240);}
+          eng.px(cx+1,dy,c); eng.px(cx+2,dy,c); eng.px(cx+1,dy+1,c); eng.px(cx+2,dy+1,c); }
+        cx+=5; continue;
+      }
       const gl=gs[ch]||gs[FALLBACK[ch]]||gs['?']; if(!gl){cx+=4;continue;}
       for(let gy=0;gy<gl.h;gy++)for(let gx=0;gx<gl.w;gx++){
         const lv=gl.data[gy*gl.w+gx]; if(!lv) continue;

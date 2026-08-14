@@ -335,8 +335,15 @@ function paintFace(big,W2,H2,p){
   if(p.scar){ g.strokeStyle='rgba(150,60,50,0.8)'; g.lineWidth=2.5; g.beginPath(); g.moveTo(cx-hr*0.5,hy-hr*0.4); g.lineTo(cx-hr*0.2,hy+hr*0.25); g.stroke(); }
   // facial hair
   const hairC=p.hairC||'#4a3828';
-  if(p.beard){ g.fillStyle=hairC; g.beginPath(); g.moveTo(cx-hr*0.6,hy+hr*0.3); g.quadraticCurveTo(cx,hy+hr*(1.1+p.beard*0.25),cx+hr*0.6,hy+hr*0.3); g.quadraticCurveTo(cx,hy+hr*0.75,cx-hr*0.6,hy+hr*0.3); g.fill(); }
-  if(p.mustache){ g.strokeStyle=hairC; g.lineWidth=5; g.beginPath(); g.moveTo(cx-hr*0.25,my-3); g.quadraticCurveTo(cx,my-8,cx+hr*0.25,my-3); g.stroke(); }
+  if(p.beard){ // full beard from jawline, mustache bridge, lip line kept visible
+    g.fillStyle=hairC; g.beginPath();
+    g.moveTo(cx-hr*0.78,hy+hr*0.1); g.quadraticCurveTo(cx-hr*0.7,hy+hr*(0.95+p.beard*0.3),cx,hy+hr*(1.15+p.beard*0.3));
+    g.quadraticCurveTo(cx+hr*0.7,hy+hr*(0.95+p.beard*0.3),cx+hr*0.78,hy+hr*0.1);
+    g.quadraticCurveTo(cx+hr*0.5,hy+hr*0.5,cx,hy+hr*0.52); g.quadraticCurveTo(cx-hr*0.5,hy+hr*0.5,cx-hr*0.78,hy+hr*0.1); g.fill();
+    g.strokeStyle=hairC; g.lineWidth=6; g.beginPath(); g.moveTo(cx-hr*0.3,my-2); g.quadraticCurveTo(cx,my-7,cx+hr*0.3,my-2); g.stroke();
+    g.strokeStyle='rgba(200,120,100,0.8)'; g.lineWidth=2; g.beginPath(); g.moveTo(cx-hr*0.16,my+2); g.quadraticCurveTo(cx,my+4,cx+hr*0.16,my+2); g.stroke();
+  }
+  if(p.mustache&&!p.beard){ g.strokeStyle=hairC; g.lineWidth=5; g.beginPath(); g.moveTo(cx-hr*0.25,my-3); g.quadraticCurveTo(cx,my-8,cx+hr*0.25,my-3); g.stroke(); }
   // hair (skip under hood/scarf — they framed the face already)
   if(p.head!=='hood'&&p.head!=='scarf'){
     if(p.hair===1){ g.fillStyle=hairC; g.beginPath(); g.arc(cx,hy-hr*0.32,hr*0.95,Math.PI*0.95,Math.PI*2.05); g.fill(); }
