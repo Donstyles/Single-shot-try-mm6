@@ -57,6 +57,7 @@ const Game = {
     this.stats={kills:0,goldEarned:0}; this.activePc=0; this.turnBased=false;
     this.graceUntilInput=true; this.victoryShown=false;
     this.ensureExplored(); this.markExplored();
+    this.exploreRect(29,30,37,16); // home town is known ground from day one
     this.state='play'; UI.close();
     Log.lines.length=0;
     Log.add('Vintavia, at last. The mayor is said to pay for bold hands.');
@@ -264,6 +265,8 @@ const Game = {
     }};
   },
   ensureExplored(){ if(!this.explored[this.mapId]){ const m=World.maps[this.mapId]; this.explored[this.mapId]=new Uint8Array(m.w*m.h); } },
+  exploreRect(x0,y0,w,h){ const m=World.maps[this.mapId], ex=this.explored[this.mapId];
+    for(let y=Math.max(0,y0);y<Math.min(m.h,y0+h);y++) for(let x=Math.max(0,x0);x<Math.min(m.w,x0+w);x++) ex[y*m.w+x]=1; },
   markExplored(){
     const m=World.maps[this.mapId], ex=this.explored[this.mapId];
     const cx=this.px|0, cy=this.py|0;
@@ -309,6 +312,16 @@ const Game = {
         }
       }
       if(calm){ m.state='idle'; continue; }
+      // wounded beasts break and run (bosses and the dead don't fear)
+      if(m.hp<d.hp*0.22&&!d.boss&&!d.und&&!m.rallied){
+        if(!m.fleeing&&r.chance(0.7)) m.fleeing=true; else if(!m.fleeing) m.rallied=true;
+        if(m.fleeing){
+          const away=angTo(this.px,this.py,m.x,m.y);
+          this.moveMonster(m,Math.cos(away)*d.spd*1.15*s,Math.sin(away)*d.spd*1.15*s);
+          if(distP>d.aggro*1.6){ m.state='idle'; m.fleeing=false; }
+          continue;
+        }
+      }
       // chase behavior
       const ang=angTo(m.x,m.y,this.px,this.py);
       const wantRange=d.ai==='melee'?1.0:5.0;
@@ -361,6 +374,7 @@ const Game = {
   },
   damagePc(pc,dmg,srcName){
     pc.hp-=dmg;
+    pc.painT=performance.now();
     Audio2.sfx('hurt');
     Log.add(srcName+' hits '+pc.name+' for '+dmg+'.',palIdx(14,10));
     this.hurtFlash=performance.now();
@@ -540,6 +554,15 @@ const Game = {
     const map=World.maps[this.mapId];
     const fx=this.px+Math.cos(this.ang)*1.0, fy=this.py+Math.sin(this.ang)*1.0;
     const fc={x:fx|0,y:fy|0};
+    // the cell you FACE always wins: doors and shopfronts beat nearby chatter
+    for(const s of map.shops){ if(fc.x===s.x&&fc.y===s.y){ Audio2.sfx('door'); UI.open(UI.shopScreen(s.shop)); return; } }
+    if(map.doors[fc.x+','+fc.y]){
+      const d=map.doors[fc.x+','+fc.y];
+      if(d.needs&&!this.partyHasItem(d.needs)){ UI.say('A sigil-shaped hollow glows. Something is missing.'); Audio2.sfx('error'); return; }
+      if(d.needs&&!d.open) Log.add('The Vault Sigil flares — the seal breaks!',palIdx(8,13));
+      d.open=!d.open; Audio2.sfx('door'); return;
+    }
+    for(const p of map.portals){ if(fc.x===p.x&&fc.y===p.y&&p.to){ this.transition(p.to,p.tx,p.ty); return; } }
     // corpse loot (nearest within 1.8)
     let corpse=null,cd=1.8*1.8;
     for(const c of this.corpses){ if(c.mapId!==this.mapId||c.looted) continue;
@@ -565,27 +588,15 @@ const Game = {
         return;
       }
     }
-    // npc
+    // npc (only when not facing a door)
     for(const n of map.npcs){
       if(dist2(n.x,n.y,this.px,this.py)<2.2*2.2){ UI.open(UI.dialogScreen(n.id)); return; }
     }
-    // shop door (by facing cell or adjacent)
+    // shop door by adjacency (walked up beside it)
     for(const s of map.shops){
-      if((Math.abs(s.x+0.5-this.px)<1.6&&Math.abs(s.y+0.5-this.py)<1.6)||((fc.x===s.x)&&(fc.y===s.y))){
+      if(Math.abs(s.x+0.5-this.px)<1.6&&Math.abs(s.y+0.5-this.py)<1.6){
         Audio2.sfx('door'); UI.open(UI.shopScreen(s.shop)); return;
       }
-    }
-    // door
-    const dk=fc.x+','+fc.y;
-    if(map.doors[dk]){
-      const d=map.doors[dk];
-      if(d.needs&&!this.partyHasItem(d.needs)){ UI.say('A sigil-shaped hollow glows. Something is missing.'); Audio2.sfx('error'); return; }
-      if(d.needs&&!d.open) Log.add('The Vault Sigil flares — the seal breaks!',palIdx(8,13));
-      d.open=!d.open; Audio2.sfx('door'); return;
-    }
-    // portal by facing (crypt entrance etc.)
-    for(const p of map.portals){
-      if(fc.x===p.x&&fc.y===p.y&&p.to){ this.transition(p.to,p.tx,p.ty); return; }
     }
     UI.say('Nothing here answers.');
   },
@@ -884,8 +895,8 @@ const Game = {
   // ---------- draw ----------
   draw(now){
     const E=Engine;
-    if(this.state==='title'||this.state==='boot'){ if(UI.screen){ UI.hit=[]; UI.screen.draw(); } E.present(); return; }
-    if(UI.screen){ UI.hit=[]; UI.screen.draw(); E.present(); return; }
+    if(this.state==='title'||this.state==='boot'){ if(UI.screen){ UI.hit=[]; UI.screen.draw(); UI.drawToast(); } E.present(); return; }
+    if(UI.screen){ UI.hit=[]; UI.screen.draw(); UI.drawToast(); E.present(); return; }
     // 3D view
     const map=World.maps[this.mapId];
     const light= map.outdoor? Clock.lightLevel(this.clock.min) : (map.dungeonLight||0.3);
@@ -917,7 +928,9 @@ const Game = {
       let frame='idle';
       if(m.attackT&&now-m.attackT<420) frame='attack';
       else if(m.state==='chase') frame=wob(m)?'walk':'idle';
-      ents.push({x:m.x,y:m.y,tex:sp.frames[frame],tw:sp.tw,th:sp.th,scale:d.scale,ghost:m.mid==='ghost',
+      const breathe=Math.sin(now/620+(m.homeX*7+m.homeY*3))*0.006; // idle life
+      ents.push({x:m.x,y:m.y,tex:sp.frames[frame],tw:sp.tw,th:sp.th,scale:d.scale+breathe,ghost:m.mid==='ghost',
+        vOff:m.mid==='ghost'?Math.sin(now/480+m.homeX)*0.03-0.05:0,
         shade:(m.hurtT&&now-m.hurtT<140?-3:0)+(m.mid==='ghost'?-4:0)});
     }
     for(const c of this.corpses){

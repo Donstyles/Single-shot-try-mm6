@@ -194,7 +194,7 @@ const World = {
     map.npcs.push({id:'folk1',x:TOWN_X+18.5,y:TOWN_Y+9.6,kind:'peasant_f',name:'Marta the Baker'});
     map.npcs.push({id:'folk2',x:TOWN_X+8.5,y:TOWN_Y+13.5,kind:'peasant_m',name:'Old Tam'});
     map.npcs.push({id:'folk3',x:TOWN_X+27.5,y:TOWN_Y+13.5,kind:'guard',name:'Guard Willem'});
-    map.npcs.push({id:'folk4',x:TOWN_X+3.5,y:TOWN_Y+8.6,kind:'guard',name:'Guard Petra'});
+    map.npcs.push({id:'folk4',x:TOWN_X+1.6,y:TOWN_Y+6.3,kind:'guard',name:'Guard Petra'}); // west gate post, clear of the temple door
     // monsters (seeded): weak goblin singles near town, wolves mid, camps, ridge casters
     const M=map.monsters;
     const near=[[24,28],[22,44],[40,52],[68,36],[52,26],[68,44],[36,22],[60,54]];

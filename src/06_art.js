@@ -3,7 +3,7 @@
 'use strict';
 
 const Art = {
-  walls:{}, floors:{}, ceilings:{}, sprites:{}, icons:{}, portraits:{}, paperdolls:{}, ui:{}, font:null,
+  walls:{}, floors:{}, ceilings:{}, sprites:{}, icons:{}, portraits:{}, portraitsPain:{}, paperdolls:{}, ui:{}, font:null,
   _skyCache:{}, _water:[null,null], _waterFlip:0,
 };
 
@@ -52,11 +52,14 @@ Art.bakeTextures=function(){
     const ex=Math.min(bx,bw-bx)/mortar, ey=Math.min(by,bh-by)/mortar;
     return Math.min(1,Math.min(ex,ey));
   };
-  // 1: town stone — big ashlar blocks, warm gray
+  // 1: town stone — big ashlar blocks, weathered: grime streaks + moss at the base
   Art.walls[1]=bakePix(64,64,(x,y)=>{
     const b=brickPat(x,y,32,16,2.4), n=N(x/6,y/6);
-    const s=4+b*5+n*4+N2(x/3,y/3)*1.5;
-    return palIdx(0,clamp(s|0,2,13));
+    const streak=N2(x/1.8,7.3)>0.78&&y>10? 2:0; // vertical water stains
+    const chip=N2(x/2.2,y/2.2)>0.9?2:0;
+    if(y>46&&N2(x/3.5,y/3)>0.7&&b>0.4) return palIdx(13,3+(n*3|0)); // moss creep
+    const s=3+b*5+n*3.4-streak-chip;
+    return palIdx(0,clamp(s|0,1,11));
   });
   // 2: timber house — cream plaster + dark beams + window glow
   Art.walls[2]=bakePix(64,64,(x,y)=>{
@@ -233,7 +236,7 @@ Art.bakeFont=function(){
   const font={sizes:{},draw:null,width:null};
   const cnv=document.createElement('canvas'); cnv.width=48; cnv.height=48;
   const g=cnv.getContext('2d',{willReadFrequently:true});
-  const EXTRA='’‘“”—–◆✓►◄−×…é';
+  const EXTRA='’‘“”—–◆✓►◄−×…é↑↓←→';
   for(const sz of sizes){
     const glyphs={};
     g.font='bold '+sz+'px Georgia, "Times New Roman", serif';
@@ -248,7 +251,7 @@ Art.bakeFont=function(){
       const d=g.getImageData(0,0,Math.min(48,gw+2),gh).data;
       const w2=Math.min(48,gw+2);
       const data=new Uint8Array(w2*gh);
-      for(let i=0;i<w2*gh;i++){ const a=d[i*4+3]; data[i]=a>190?3:a>110?2:a>50?1:0; }
+      for(let i=0;i<w2*gh;i++){ const a=d[i*4+3]; data[i]=a>190?3:a>110?2:a>36?1:0; } // low floor keeps colon dots alive
       glyphs[ch]={w:w2,h:gh,adv:gw+1,data};
     }
     font.sizes[sz]=glyphs;

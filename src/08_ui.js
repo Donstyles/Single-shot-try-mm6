@@ -24,6 +24,13 @@ const UI = {
     return false;
   },
   say(text){ this.toast=text; this.toastT=performance.now(); },
+  drawToast(){ // visible on EVERY surface — screens and HUD alike
+    if(!this.toast||performance.now()-this.toastT>2600) return;
+    const E=Engine, w=E.textW(this.toast,11)+24;
+    const x=(SCREEN_W-w)/2|0, y=this.screen?SCREEN_H-46:VP.y+VP.h-40;
+    E.fillRect(x,y,w,22,palIdx(0,2)); E.frameRect(x,y,w,22,palIdx(5,8));
+    E.textC(this.toast,SCREEN_W/2,y+5,{size:11,ramp:5,bright:true});
+  },
 
   // ---------- HUD (drawn every frame over the 3D view) ----------
   drawHUD(){
@@ -68,7 +75,8 @@ const UI = {
       const pc=P.pcs[i]; if(!pc) continue;
       const x=px0+i*100, y=336;
       const sel=Game.activePc===i;
-      E.blit(Art.portraits[pc.portrait],58,66,x+2,y+2);
+      const wince=pc.painT&&performance.now()-pc.painT<700&&Art.portraitsPain[pc.portrait];
+      E.blit(wince?Art.portraitsPain[pc.portrait]:Art.portraits[pc.portrait],58,66,x+2,y+2);
       E.blit(Art.ui.slot,62,70,x,y);
       if(sel) E.frameRect(x-1,y-1,64,72,palIdx(5,13));
       // condition tint border
@@ -92,6 +100,7 @@ const UI = {
     this.btn(146,434,56,36,'Use (Spc)',()=>Game.interact());
     this.btn(206,434,56,36,'Pack (I)',()=>UI.open(UI.invScreen()));
     // target + crosshair
+    this.drawToast();
     E.px(VP.x+VP.w/2|0,VP.y+VP.h/2|0,palIdx(5,15));
     const t=Game.currentTarget();
     if(t){ const d=Monsters.def(t.mid);
@@ -100,10 +109,6 @@ const UI = {
     // active buffs
     let bx=VP.x+6;
     for(const b in P.buffs){ if(P.buffs[b]&&P.buffs[b].until>Game.clock.min){ E.text(b,bx,VP.y+VP.h-14,{size:9,ramp:8}); bx+=Engine.textW(b,9)+10; } }
-    // toast
-    if(this.toast&&performance.now()-this.toastT<2600){
-      E.textC(this.toast,VP.x+VP.w/2,VP.y+VP.h-34,{size:11,ramp:5,bright:true});
-    }
     // viewport tap = context action (attack monster / interact)
     this.tapRect(VP.x,VP.y,VP.w,VP.h,(lx,ly2)=>Game.viewportTap(lx,ly2));
   },
@@ -159,7 +164,12 @@ const UI = {
         E.frameRect(58,98,62,70,palIdx(1,3));
         UI.btn(36,174,50,22,'◄',()=>{ let n=(+d.portrait.slice(1)+7)%8; d.portrait='p'+n; },{size:11});
         UI.btn(92,174,50,22,'►',()=>{ let n=(+d.portrait.slice(1)+1)%8; d.portrait='p'+n; },{size:11});
-        UI.btn(36,202,106,22,'Name: '+d.name,()=>{ d.name=NAMES[(NAMES.indexOf(d.name)+1)%NAMES.length]; },{size:9});
+        UI.btn(36,202,106,22,'Name: '+d.name,()=>{
+          const used=this.drafts.map(x=>x.name);
+          let n=NAMES.indexOf(d.name);
+          do { n=(n+1)%NAMES.length; } while(used.includes(NAMES[n])&&NAMES[n]!==d.name);
+          d.name=NAMES[n];
+        },{size:9});
         // class list
         E.text('Class',170,100,{size:11,ramp:1});
         clsList.forEach((c,ci)=>{
@@ -205,14 +215,20 @@ const UI = {
         // paperdoll + equip
         E.blit(Art.paperdolls.male,92,150,48,92);
         E.frameRect(46,90,96,154,palIdx(1,3));
-        const slots=[['weapon',150,96],['shield',150,126],['armor',150,156],['helm',150,186],['boots',150,216],['ring1',48,250],['ring2',96,250],['amulet',144,250]];
-        for(const [slot,sx,sy] of slots){
+        // gear worn on the doll itself (helm/armor/boots/weapon/shield)
+        const dollAnchors={helm:[82,96],armor:[82,148],boots:[82,204],weapon:[118,146],shield:[56,146]};
+        for(const slot in dollAnchors){ const it=pc.equip[slot];
+          if(it){ const [ax,ay]=dollAnchors[slot]; E.blit(Art.icons[ITEMS[it.id].icon],24,24,ax,ay); } }
+        const slots=[['weapon','Wpn',150,96],['shield','Off',150,126],['armor','Arm',150,156],['helm','Helm',150,186],['boots','Feet',150,216],['ring1','Ring',48,250],['ring2','Ring',96,250],['amulet','Neck',144,250]];
+        for(const [slot,label,sx,sy] of slots){
           E.fillRect(sx,sy,26,26,palIdx(1,5)); E.frameRect(sx,sy,26,26,palIdx(1,3));
           const it=pc.equip[slot];
           if(it) E.blit(Art.icons[ITEMS[it.id].icon],24,24,sx+1,sy+1);
+          if(sy===250) E.textC(label,sx+13,sy-11,{size:9,ramp:1});
+          else E.text(label,sx+30,sy+9,{size:9,ramp:1});
           UI.tapRect(sx,sy,26,26,()=>{ if(pc.equip[slot]){ Game.unequip(pi,slot); selItem=-1; } });
         }
-        E.text('tap gear to unequip',46,282,{size:9,ramp:0});
+        E.text('tap worn gear to unequip',46,282,{size:9,ramp:0});
         // stats (all rules-derived)
         const eq=Object.values(pc.equip).map(Items.def);
         E.text('HP '+pc.hp+'/'+Rules.maxHP(pc)+'   SP '+pc.sp+'/'+Rules.maxSP(pc),46,300,{size:11,ramp:2});
@@ -265,7 +281,12 @@ const UI = {
         UI.chrome(pc.name+' — Spellbook');
         for(let i=0;i<4;i++) UI.btn(60+i*90,52,84,22,P.pcs[i].name,()=>{ pi=i; school=null; },{size:9,down:pi===i});
         const schools=CLASSES[pc.cls].schools;
-        if(!schools.length){ E.textC(pc.name+' follows the way of steel — no spellbook.',SCREEN_W/2,200,{size:11,ramp:1}); return; }
+        if(!schools.length){
+          E.textC(pc.name+' follows the way of steel — no spellbook.',SCREEN_W/2,170,{size:11,ramp:1});
+          E.textC('Arms mastered: '+Object.keys(pc.skills).filter(s=>SKILLS[s].type==='weapon'||SKILLS[s].type==='armor').map(s=>SKILLS[s].name+' '+pc.skills[s]).join(',  '),SCREEN_W/2,200,{size:9,ramp:0});
+          E.textC('Steel keeps its own counsel. It has never once run out of spell points.',SCREEN_W/2,228,{size:9,ramp:11});
+          return;
+        }
         if(!school) school=schools[0];
         schools.forEach((s,si)=>UI.btn(46+si*84,88,80,24,SKILLS[s].name.replace(' Magic',''),()=>{ school=s; },{size:9,down:school===s}));
         E.text('SP: '+pc.sp+'/'+Rules.maxSP(pc)+'    '+SKILLS[school].name+' skill: '+(pc.skills[school]||0)+' ('+Rules.skillTier(pc.skills[school]||0)+')',46,124,{size:11,ramp:3});
@@ -332,13 +353,18 @@ const UI = {
           let col=c? (c===7||c===9?palIdx(1,6):palIdx(0,4)) : f===6?palIdx(3,6): f===1?palIdx(1,7): f===2?palIdx(0,8): m.outdoor?palIdx(2,6):palIdx(11,6);
           E.fillRect(ox+x2*cs,oy+y2*cs,cs,cs,col);
         }
-        for(const s of m.shops){ if(ex[s.y*m.w+s.x]) E.fillRect(ox+s.x*cs,oy+s.y*cs,cs,cs,palIdx(5,10)); }
+        const shopLetter={weapon:'W',armor:'A',guild:'G',tavern:'V',temple:'T',train:'R',bank:'B',hall:'H'};
+        for(const s of m.shops){ if(ex[s.y*m.w+s.x]){
+          E.fillRect(ox+s.x*cs-1,oy+s.y*cs-1,cs+2,cs+2,palIdx(5,10));
+          if(cs>=3) E.text(shopLetter[s.shop],ox+s.x*cs+cs+1,oy+s.y*cs-3,{size:9,ramp:5,bright:true});
+        }}
         // player arrow
         const px2=ox+Game.px*cs, py2=oy+Game.py*cs;
         E.fillRect(px2-2|0,py2-2|0,5,5,palIdx(14,10));
         const dx=Math.cos(Game.ang)*6, dy=Math.sin(Game.ang)*6;
         E.fillRect(px2+dx-1|0,py2+dy-1|0,3,3,palIdx(5,14));
-        E.textC('gold = shops    red = you',SCREEN_W/2,SCREEN_H-24,{size:9,ramp:0});
+        E.text('N ↑',SCREEN_W-70,60,{size:11,ramp:5,bright:true});
+        E.textC('W weapons · A armor · G guild · V tavern · T temple · R training · B bank · H hall     red = you',SCREEN_W/2,SCREEN_H-24,{size:9,ramp:0});
       }
     };
   },
@@ -453,7 +479,7 @@ const UI = {
             UI.btn(150,my,200,28,'Rest the night — '+(P.perks.freerest?'free!':Rules.tavernRestCost(P.pcs.reduce((s,p)=>s+p.level,0))+' gold'),()=>Game.tavernRest(),{size:9});
             UI.btn(150,my+34,200,28,'Hear the gossip',()=>{ mode='talk'; },{size:9});
             if(mode==='talk') UI.wrapText(NPCS.tavernkeep.rumor,150,my+76,400,11);
-            this.buySell(SHOP_STOCK.tavern,merch,my+110);
+            this.buySell(SHOP_STOCK.tavern,merch,my+150,6);
             break;
           }
           case 'temple': {
@@ -468,14 +494,18 @@ const UI = {
           }
           case 'train': {
             const pc=P.pcs[selPc];
-            E.text(pc.name+' — level '+pc.level+'   XP '+pc.xp+'/'+Rules.xpForLevel(pc.level+1),150,my,{size:11,ramp:0});
+            const need=Rules.xpForLevel(pc.level+1);
+            E.text(pc.name+' — level '+pc.level+'   XP '+pc.xp+(Rules.canTrain(pc)?'  (ready to train!)':' / '+need),150,my,{size:11,ramp:Rules.canTrain(pc)?5:0});
             if(Rules.canTrain(pc)) UI.btn(150,my+20,280,28,'Train to level '+(pc.level+1)+' — '+Rules.trainCost(pc.level)+' gold',()=>Game.trainPc(selPc),{size:9});
-            else E.text('Come back with more experience.',150,my+26,{size:9,ramp:0});
+            else E.text('Come back with more experience — the yard teaches nothing to the unbloodied.',150,my+26,{size:9,ramp:0});
             // skill training
-            E.text('Skill instruction ('+pc.skillPoints+' skill points):',150,my+60,{size:9,ramp:1});
+            const canRaise=pc.skillPoints>0;
+            E.text('Skill instruction — '+pc.skillPoints+' skill point'+(pc.skillPoints===1?'':'s')+(canRaise?':':' (train a level to earn more)'),150,my+60,{size:9,ramp:canRaise?1:11});
             let yy=my+78; let n=0;
             for(const sk in pc.skills){ if(n++>7) break;
-              UI.btn(150,yy,220,22,SKILLS[sk].name+' '+pc.skills[sk]+' → '+(pc.skills[sk]+1)+'  (1 pt)',()=>Game.raiseSkill(selPc,sk),{size:9});
+              const tierNext=Rules.skillTier(pc.skills[sk]+1);
+              if(canRaise) UI.btn(150,yy,250,22,SKILLS[sk].name+' '+pc.skills[sk]+' → '+(pc.skills[sk]+1)+(tierNext!==Rules.skillTier(pc.skills[sk])?'  ('+tierNext+'!)':''),()=>Game.raiseSkill(selPc,sk),{size:9});
+              else E.text(SKILLS[sk].name+' '+pc.skills[sk]+' ('+Rules.skillTier(pc.skills[sk])+')',160,yy+5,{size:9,ramp:11}),UI.tapRect(150,yy,250,22,()=>{});
               yy+=26;
             }
             break;
@@ -491,45 +521,60 @@ const UI = {
           case 'guild': {
             const pc=P.pcs[selPc];
             E.text(pc.name+'  SP '+pc.sp+'/'+Rules.maxSP(pc),150,my-6,{size:9,ramp:3});
-            let yy=my+12, n=0;
+            let yy=my+12, n=0, more=0;
             for(const id in SPELLS){ const s=SPELLS[id];
               if(!CLASSES[pc.cls].schools.includes(s.school)) continue;
               if(pc.spells.includes(id)) continue;
-              if(n++>6) break;
+              if(n>=5){ more++; continue; }
+              n++;
               const price=Rules.buyPrice(Spellcraft.guildPrice(id),merch);
-              UI.btn(150,yy,320,24,s.name+' ('+SKILLS[s.school].name.replace(' Magic','')+' '+(s.req>=7?'M':s.req>=4?'E':'N')+') — '+price+'g',()=>Game.buySpell(selPc,id,price),{size:9});
+              const afford=P.gold>=price;
+              UI.btn(150,yy,330,24,s.name+' ('+SKILLS[s.school].name.replace(' Magic','')+' '+(s.req>=7?'Mastery':s.req>=4?'Expert':'Novice')+') — '+price+'g',()=>Game.buySpell(selPc,id),{size:9,ramp:afford?5:11});
               yy+=28;
             }
-            if(!n) E.text('No further mysteries for this pupil.',150,yy,{size:9,ramp:0});
-            this.buySell(SHOP_STOCK.guild,merch,yy+10);
+            if(!n) E.text('No further mysteries for this pupil.',150,yy+4,{size:9,ramp:0}),yy+=20;
+            if(more) E.text('…'+more+' more once these are learned.',150,yy+2,{size:9,ramp:0});
+            this.buySell(SHOP_STOCK.guild,merch,332,6);
             break;
           }
         }
       },
-      buySell(stock,merch,y0){
-        const E=Engine,P=Game.party;
-        E.text('Wares (tap to buy)',150,y0,{size:9,ramp:1});
+      buySell(stock,merch,y0,maxSell){
+        const E=Engine,P=Game.party,self=this;
+        E.text('Wares — tap to inspect, tap again to buy',150,y0,{size:9,ramp:1});
         stock.forEach((id,i)=>{
           const x=150+(i%6)*56, y=y0+14+((i/6)|0)*56;
           const d=ITEMS[id], price=Rules.buyPrice(d.price,merch);
-          E.fillRect(x,y,52,40,palIdx(1,6)); E.frameRect(x,y,52,40,palIdx(1,3));
+          const sel=self.selWare===id;
+          E.fillRect(x,y,52,40,palIdx(1,sel?9:6)); E.frameRect(x,y,52,40,palIdx(sel?5:1,sel?9:3));
           E.blit(Art.icons[d.icon],24,24,x+14,y+2);
           E.textC(price+'g',x+26,y+28,{size:9,ramp:P.gold>=price?5:14});
-          UI.tapRect(x,y,52,40,()=>Game.buyItem(id,price));
+          UI.tapRect(x,y,52,40,()=>{ if(self.selWare===id){ Game.buyItem(id); self.selWare=null; } else { self.selWare=id; Audio2.sfx('click'); } });
         });
-        const sellY=y0+14+Math.ceil(stock.length/6)*56+6;
-        E.text('Your goods (tap to sell)',150,sellY,{size:9,ramp:1});
-        let n=0;
+        // inspect line for selected ware
+        const infoY=y0+14+Math.ceil(stock.length/6)*56+2;
+        if(this.selWare&&ITEMS[this.selWare]){
+          const d=ITEMS[this.selWare];
+          let inf=d.name;
+          if(d.slot==='weapon') inf+='  —  '+d.dn+'d'+d.dd+(d.dp?'+'+d.dp:'')+' ['+SKILLS[d.skill].name+']';
+          else if(d.ac) inf+='  —  AC +'+d.ac+(d.skill?' ['+SKILLS[d.skill].name+']':'');
+          else if(d.stat) inf+='  —  +'+d.statPlus+' '+d.stat;
+          else if(d.use) inf+='  —  '+(d.use==='heal'?'restores health':d.use==='mana'?'restores spell points':'cures ailments');
+          E.text(inf+'   (tap again to buy)',150,infoY,{size:9,ramp:5,bright:true});
+        }
+        const sellY=infoY+14;
+        E.text('Your goods (tap to sell) — '+P.pcs[Game.activePc].name+'’s pack',150,sellY,{size:9,ramp:1});
+        let n=0; const cap=maxSell||12;
         const pc=P.pcs[Game.activePc];
         pc.items.forEach((it,ii)=>{
-          if(!it||n>=12) return; const d=ITEMS[it.id];
+          if(!it||n>=cap) return; const d=ITEMS[it.id];
           if(d.slot==='quest') return;
           const x=150+(n%6)*56, y=sellY+14+((n/6)|0)*56;
           const price=Rules.sellPrice(Items.basePrice(it),merch);
           E.fillRect(x,y,52,40,palIdx(9,4)); E.frameRect(x,y,52,40,palIdx(1,3));
           E.blit(Art.icons[d.icon],24,24,x+14,y+2);
           E.textC('+'+price+'g',x+26,y+28,{size:9,ramp:2});
-          UI.tapRect(x,y,52,40,()=>Game.sellItem(Game.activePc,ii,price));
+          UI.tapRect(x,y,52,40,()=>Game.sellItem(Game.activePc,ii));
           n++;
         });
         if(!n) E.text('(nothing to sell — the active hero’s pack is empty)',150,sellY+18,{size:9,ramp:11});

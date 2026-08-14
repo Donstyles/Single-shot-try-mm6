@@ -298,13 +298,19 @@ function paintFace(big,W2,H2,p){
   // eyes
   const ey=hy-hr*0.1, ex=hr*0.42;
   for(const d of [-1,1]){
-    g.fillStyle='#e8e0d4'; g.beginPath(); g.ellipse(cx+d*ex,ey,hr*0.2,hr*0.12,0,0,7); g.fill();
-    g.fillStyle=p.eyes||'#4a6a8a'; g.beginPath(); g.ellipse(cx+d*ex,ey,hr*0.09,hr*0.1,0,0,7); g.fill();
-    g.fillStyle='#100c08'; g.beginPath(); g.ellipse(cx+d*ex,ey,hr*0.045,hr*0.05,0,0,7); g.fill();
-    g.strokeStyle='rgba(40,20,10,0.7)'; g.lineWidth=2; g.beginPath(); g.moveTo(cx+d*ex-hr*0.2,ey-hr*0.1); g.quadraticCurveTo(cx+d*ex,ey-hr*0.2,cx+d*ex+hr*0.2,ey-hr*0.08); g.stroke();
-    // brow
+    if(p.pain){ // squeezed shut
+      g.strokeStyle='rgba(40,20,10,0.85)'; g.lineWidth=2.5;
+      g.beginPath(); g.moveTo(cx+d*ex-hr*0.18,ey); g.quadraticCurveTo(cx+d*ex,ey+hr*0.08,cx+d*ex+hr*0.18,ey); g.stroke();
+    } else {
+      g.fillStyle='#e8e0d4'; g.beginPath(); g.ellipse(cx+d*ex,ey,hr*0.2,hr*0.12,0,0,7); g.fill();
+      g.fillStyle=p.eyes||'#4a6a8a'; g.beginPath(); g.ellipse(cx+d*ex,ey,hr*0.09,hr*0.1,0,0,7); g.fill();
+      g.fillStyle='#100c08'; g.beginPath(); g.ellipse(cx+d*ex,ey,hr*0.045,hr*0.05,0,0,7); g.fill();
+      g.strokeStyle='rgba(40,20,10,0.7)'; g.lineWidth=2; g.beginPath(); g.moveTo(cx+d*ex-hr*0.2,ey-hr*0.1); g.quadraticCurveTo(cx+d*ex,ey-hr*0.2,cx+d*ex+hr*0.2,ey-hr*0.08); g.stroke();
+    }
+    // brow (pain = knotted upward)
     g.strokeStyle=p.hairC||'#4a3828'; g.lineWidth=p.thickBrow?5:3;
-    g.beginPath(); g.moveTo(cx+d*ex-hr*0.22,ey-hr*0.25); g.quadraticCurveTo(cx+d*ex,ey-hr*(0.34+(p.angry?0.02:0.08)),cx+d*ex+hr*0.2,ey-hr*(p.angry?0.36:0.28)); g.stroke();
+    const knot=p.pain?0.38:(p.angry?0.36:0.28);
+    g.beginPath(); g.moveTo(cx+d*ex-hr*0.22,ey-hr*(p.pain?0.18:0.25)); g.quadraticCurveTo(cx+d*ex,ey-hr*(0.34+(p.angry||p.pain?0.02:0.08)),cx+d*ex+hr*0.2,ey-hr*knot); g.stroke();
   }
   // nose
   g.strokeStyle='rgba(70,35,18,0.5)'; g.lineWidth=2.5;
@@ -313,10 +319,15 @@ function paintFace(big,W2,H2,p){
   g.beginPath(); g.ellipse(cx-hr*0.1,hy+hr*0.42,2.5,2,0,0,7); g.fill();
   g.beginPath(); g.ellipse(cx+hr*0.1,hy+hr*0.42,2.5,2,0,0,7); g.fill();
   // mouth
-  g.strokeStyle='rgba(90,30,25,0.85)'; g.lineWidth=2.5;
   const my=hy+hr*0.68;
-  g.beginPath(); g.moveTo(cx-hr*0.26,my); g.quadraticCurveTo(cx,my+(p.smile?hr*0.1:p.stern?-hr*0.02:hr*0.04),cx+hr*0.26,my); g.stroke();
-  g.fillStyle='rgba(190,110,95,0.5)'; g.beginPath(); g.ellipse(cx,my+hr*0.09,hr*0.16,hr*0.05,0,0,7); g.fill();
+  if(p.pain){ // open cry
+    g.fillStyle='rgba(60,18,16,0.9)'; g.beginPath(); g.ellipse(cx,my+hr*0.02,hr*0.16,hr*0.13,0,0,7); g.fill();
+    g.strokeStyle='rgba(40,15,12,0.8)'; g.lineWidth=1.5; g.stroke();
+  } else {
+    g.strokeStyle='rgba(90,30,25,0.85)'; g.lineWidth=2.5;
+    g.beginPath(); g.moveTo(cx-hr*0.26,my); g.quadraticCurveTo(cx,my+(p.smile?hr*0.1:p.stern?-hr*0.02:hr*0.04),cx+hr*0.26,my); g.stroke();
+    g.fillStyle='rgba(190,110,95,0.5)'; g.beginPath(); g.ellipse(cx,my+hr*0.09,hr*0.16,hr*0.05,0,0,7); g.fill();
+  }
   // age lines
   if(p.old){ g.strokeStyle='rgba(70,35,18,0.35)'; g.lineWidth=2;
     for(const d of [-1,1]){ g.beginPath(); g.moveTo(cx+d*hr*0.5,hy+hr*0.35); g.quadraticCurveTo(cx+d*hr*0.42,hy+hr*0.6,cx+d*hr*0.3,my+4); g.stroke(); }
@@ -342,11 +353,13 @@ function paintFace(big,W2,H2,p){
 }
 function bakePortrait(id,p){
   const W=58,H=66;
-  Art.portraits[id]=bakeFromCanvas(W,H,(g)=>{
+  const paint=(extra)=>bakeFromCanvas(W,H,(g)=>{
     const big=document.createElement('canvas'); big.width=W*2; big.height=H*2;
-    paintFace(big.getContext('2d'),W*2,H*2,p);
+    paintFace(big.getContext('2d'),W*2,H*2,Object.assign({},p,extra));
     g.drawImage(big,0,0,W,H);
   },8);
+  Art.portraits[id]=paint();
+  if(id[0]==='p') Art.portraitsPain[id]=paint({pain:1}); // party members wince when hit
 }
 const PORTRAIT_DEFS={
   p0:{skin:'#d8a878',hair:1,hairC:'#4a3828',eyes:'#4a6a8a',garb:'#6a5a44',thickBrow:1},                    // Roderic - knight
