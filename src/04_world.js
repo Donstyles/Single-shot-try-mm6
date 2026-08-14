@@ -244,7 +244,7 @@ const World = {
     const gw=Monsters.make('goblin_war',14.5,39.5); gw.group='gobcamp'; M.push(gw);
     const gs=Monsters.make('goblin_sham',11.5,35.0); gs.group='gobcamp'; M.push(gs);
     // stepping stones on the quest road: singles a fresh party can take
-    M.push(Monsters.make('goblin',70.5,33.5),Monsters.make('goblin',73.5,27.5),Monsters.make('wolf',68.5,24.5));
+    M.push(Monsters.make('goblin',70.5,33.5),Monsters.make('goblin',70.5,28.5),Monsters.make('wolf',68.5,24.5));
     // bandit camp: pickets close to the fire, captain at its heart (leashed like all camps)
     for(const [mid,x,y] of [['bandit',72.5,18.5],['bandit',68.5,17.5],['bandit',71.5,15.0],
       ['bandit_bow',73.5,14.5],['bandit_bow',67.5,13.5],['bandit_boss',70.5,14.2]]){
