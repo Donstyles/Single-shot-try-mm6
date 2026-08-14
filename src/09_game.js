@@ -1051,7 +1051,7 @@ const Game = {
       if(dc.kind==='brazier'&&flick) key='decor_brazier_b';
       if(dc.kind==='tree'&&((dc.x*7+dc.y*13)|0)%2) key='decor_tree2';
       const sp=Art.sprites[key]; if(!sp) continue;
-      const dscale=dc.kind.startsWith('tree')?1.6:dc.kind==='cryptgate'?1.15:0.9;
+      const th=((dc.x*13+dc.y*7)|0)%10; const dscale=dc.kind.startsWith('tree')?(1.5+th*0.09):dc.kind==='cryptgate'?1.15:0.9;
       ents.push({x:dc.x,y:dc.y,tex:sp.frames.idle,tw:sp.tw,th:sp.th,scale:dscale});
     }
     for(const ch of map.chests){

@@ -160,6 +160,10 @@ const World = {
       const wi=(TOWN_Y+y)*w+(TOWN_X+x);
       cells[wi]=t.cells[y*t.w+x]; floor[wi]=t.floor[y*t.w+x];
     }
+    for(let y=0;y<t.h;y++)for(let x=0;x<t.w;x++){ // blocks 2 & 4 use the cross-braced facade
+      const wi=(TOWN_Y+y)*w+(TOWN_X+x);
+      if(cells[wi]===2&&((x>=10&&x<=15)||(x>=27&&x<=34))) cells[wi]=10;
+    }
     for(const d of t.decor) map.decor.push({...d,x:d.x+TOWN_X,y:d.y+TOWN_Y});
     for(const s of t.shops) map.shops.push({x:s.x+TOWN_X,y:s.y+TOWN_Y,shop:s.shop});
     for(const k in t.doors){ const [x,y]=k.split(',').map(Number); map.doors[(x+TOWN_X)+','+(y+TOWN_Y)]=t.doors[k]; }

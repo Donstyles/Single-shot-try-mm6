@@ -72,6 +72,17 @@ Art.bakeTextures=function(){
     }
     return palIdx(1,10+(nm*4|0));
   });
+  // 10: timber house B — stone footing, cross-braced plaster, different window
+  Art.walls[10]=bakePix(64,64,(x,y)=>{
+    if(y>=48){ const b2=brickPat(x,y,16,8,1.6); return palIdx(0,3+b2*4+(N(x/4,y/4)*2|0)); } // stone footing
+    const diag=Math.abs(((x+y)%32)-16)<2||Math.abs(((x-y+64)%32)-16)<2;
+    if(x<5||x>=59||(y>22&&y<27)||diag) return palIdx(1,3+(N2(x/2,y/2)*1.5|0));
+    if(x>=38&&x<54&&y>=6&&y<20){ // upper window, shifted
+      if(x<40||x>=52||y<8||y>=18) return palIdx(1,4);
+      return palIdx(3,5+((x+y)%3));
+    }
+    return palIdx(1,9+(N(x/5,y/5)*4|0));
+  });
   // 3: mountain rock
   Art.walls[3]=bakePix(64,64,(x,y)=>{
     const n=N3(x/9,y/7)*0.6+N(x/3,y/3)*0.4;
@@ -183,9 +194,10 @@ Art.bakeTextures=function(){
     const b=brickPat(x,y,16,8,1.4);
     return palIdx(11,(b*3+N(x/4,y/4)*2|0));
   });
-  Art.ceilings.dun3=bakePix(64,64,(x,y)=>{
-    const v=Math.abs(N(x/9,y/16)-0.5)<0.02;
-    return v?palIdx(5,7):palIdx(13,1+(N2(x/5,y/5)*2|0));
+  Art.ceilings.dun3=bakePix(64,64,(x,y)=>{ // coffered dark squares with gold studs
+    const inCoffer=(x%21>3&&x%21<18&&y%21>3&&y%21<18);
+    if((x%21===10||x%21===11)&&(y%21===10||y%21===11)) return palIdx(5,6); // stud
+    return palIdx(13,(inCoffer?0:2)+(N2(x/5,y/5)*1.5|0));
   });
 };
 Art.tick=function(ms){
