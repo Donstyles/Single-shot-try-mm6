@@ -6,7 +6,7 @@
 
 ## VERDICT: SHIP — 8.5/10
 
-The core contract holds everywhere it matters: save/load round-trips are byte-honest under hostile conditions, defeat never touches the manual slot, storage failure and version mismatch are handled politely, the sim is fully deterministic, memory is flat over a 10-minute soak, and not one uncaught exception surfaced in any normal-play path. Two real defects found — one MAJOR progression-bricking edge case (quest items destroyed when all packs are full) and one MINOR crash-loop on hand-tampered structurally-invalid saves. Neither is reachable in ordinary play.
+The core contract holds everywhere it matters: save/load round-trips are byte-honest under hostile conditions, defeat never touches the manual slot, storage failure and version mismatch are handled politely, the sim is fully deterministic, memory is flat over a 10-minute soak, and not one uncaught exception surfaced in any normal-play path. Four defects found — one MAJOR progression-bricking edge case (quest items destroyed when all 192 pack slots are full), one MINOR crash-loop on hand-tampered structurally-invalid saves, one MINOR unpruned-kill-data observation, one TRIVIAL suppressed hint. None is reachable in ordinary play.
 
 ---
 
@@ -65,7 +65,23 @@ Also verified: `serialize()` prunes looted corpses; doors/chest flags round-trip
 
 ~10 minutes of continuous simulated play: 5-spot rotation across all 4 maps each cycle, 3 spawned monsters killed per cycle via `press('attack')` + `Game.update` + Fireballs, every corpse looted, loot sold, and 8 screens (inventory, spellbook, quests, map, menu, weapon shop, guild, rest camp) opened/closed with real rendered frames every cycle.
 
-- **SOAK-NUMBERS-PLACEHOLDER**
+**Totals:** 1,059 cycles, 8,472 screen open/closes, 2,974 monsters killed and looted, 5,050 game-minutes elapsed.
+
+| Metric | Start (post-GC) | End (post-GC) | Verdict |
+|---|---|---|---|
+| `usedJSHeapSize` | 8.11 MB | 20.85 MB (+12.15 MB) | Flat once retained data is accounted for — see below |
+| `Engine.frameAvg` | 15.1 ms (boot spike; steady-state ~2.5–3 ms by t=7s) | 2.8 ms | **No degradation** across 10 min and ~6,200 accumulated entities |
+| `Engine.renderScale` | 1 | 1 | never downgraded |
+| `Game.projectiles` | 0 | 0 (peak 2) | **bounded** — spliced on impact/ttl |
+| `Game.corpses` | 0 | 2,974 (all looted, none pruned) | grows 1:1 with kills — see QA-4 |
+| dead entries in `map.monsters` | 0 | 2,974 | grows 1:1 with kills — see QA-4 |
+| `Log.lines` | 2 | 60 | **capped at 60** |
+| uncaught errors during soak | — | **0** | clean |
+
+The 12 MB heap delta is dominated by the retained corpse/dead-monster entries my spawner created (≈6,000 small objects plus loot items); mid-run samples tracked kill count linearly and GC sawtoothed normally (14→24 MB oscillation). No screen-churn leak: 8,472 UI open/closes left nothing behind.
+
+### Defect QA-4 — MINOR: looted corpses and dead monsters are never pruned in-session
+`Game.corpses` entries (even after looting) and dead entries in `map.monsters` live until the next load/newGame; both are iterated every frame by `buildEntities`/`updateMonsters`. Growth is 1:1 with kills — **unbounded relative to kills, but bounded in real play** because the monster population is fixed (~62 seeded + occasional 2-wolf/2-skeleton ambush spawns; no respawns), and even 3,000 dead entities cost only ~3 ms frames and a few MB. Worth a `filter` pass on loot/kill before any respawn feature is added.
 
 ## 5. Error monitor — CLEAN
 
@@ -82,7 +98,6 @@ Loads on `?debug`: overlay present with COPY REPORT / REFRESH / CLOSE. Report da
 ## Observations (no action required)
 
 - Dead monsters stay in `map.monsters` (hp 0) and **are serialized**: 200 artificial kills grew the save 10.6 KB → 41.7 KB and all 200 dead entries round-trip. In real play the monster set is fixed (~62 + occasional ambush spawns), so this is bounded (~10–15 KB saves), but a respawn feature added later would make saves grow without limit.
-- Looted corpses are pruned from saves but not from the in-session array (bounded by kill count; flat heap confirms it's harmless at real scales).
 - `turnBased` mode is not serialized — Continue always resumes in real-time mode. Defensible; worth knowing.
 - In-flight projectiles are dropped by save/load (by design, `projectiles=[]` on load) — a shot fired before saving vanishes on reload. Cosmetic.
 - Engine-level `Game.buySpell`/`sellItem` don't re-validate what the UI filters (duplicate spells, quest items), but no shipped UI path reaches them with bad arguments.
@@ -96,7 +111,7 @@ Loads on `?debug`: overlay present with COPY REPORT / REFRESH / CLOSE. Report da
 | Purchase/econ edge handling | 9/10 |
 | Spell/target edge handling | 10/10 |
 | Storage failure handling | 9/10 (QA-3) |
-| Memory/perf | 10/10 |
+| Memory/perf | 9/10 (QA-4, harmless at real scales) |
 | Uncaught exceptions | 10/10 in reachable play |
 | Loot-with-full-pack | 4/10 (QA-1 destroys quest items) |
 
