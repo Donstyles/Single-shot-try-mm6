@@ -305,12 +305,21 @@ const UI = {
         if(!school) school=schools[0];
         schools.forEach((s,si)=>UI.btn(46+si*84,88,80,24,SKILLS[s].name.replace(' Magic',''),()=>{ school=s; },{size:9,down:school===s}));
         E.text('SP: '+pc.sp+'/'+Rules.maxSP(pc)+'    '+SKILLS[school].name+' skill: '+(pc.skills[school]||0)+' ('+Rules.skillTier(pc.skills[school]||0)+')',46,124,{size:11,ramp:3});
+        // page art: a great school sigil inked on the right leaf
+        const gemRamp2={fire:4,air:8,water:3,earth:13,spirit:15,mind:10,body:2,light:5,dark:6}[school];
+        for(let a=0;a<64;a++){ const th2=a/64*Math.PI*2;
+          const rr=118+((a%2)?6:0);
+          E.fillRect(SCREEN_W-170+Math.cos(th2)*rr|0,250+Math.sin(th2)*rr*0.9|0,3,3,palIdx(gemRamp2,6)); }
+        for(let a=0;a<8;a++){ const th2=a/8*Math.PI*2;
+          E.fillRect(SCREEN_W-170+Math.cos(th2)*70|0,250+Math.sin(th2)*63|0,5,5,palIdx(gemRamp2,8)); }
+        E.fillRect(SCREEN_W-178,242,18,18,palIdx(gemRamp2,9));
         let y=148;
         for(const id in SPELLS){
           const s=SPELLS[id]; if(s.school!==school) continue;
           const known=pc.spells.includes(id);
           const can=known&&Spellcraft.canCast(pc,id).ok;
           const gemRamp={fire:4,air:8,water:3,earth:13,spirit:15,mind:10,body:2,light:5,dark:6}[s.school];
+          E.fillRect(46,y+22,SCREEN_W-260,1,palIdx(1,6)); // ruled page line
           E.fillRect(46,y+4,10,10,palIdx(gemRamp,9)); E.frameRect(46,y+4,10,10,palIdx(gemRamp,4));
           E.text(s.name,62,y+6,{size:11,ramp:known?(can?5:0):11,bright:can});
           E.text(s.sp+' sp — '+(s.req>=7?'Master':s.req>=4?'Expert':'Novice'),210,y+6,{size:9,ramp:0});

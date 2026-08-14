@@ -79,23 +79,27 @@ function drawHumanoid(g,W,H,frame,p){
   if(p.weapon) drawWeapon(g,p.weapon,hx,hy,atk?0.5:0.15,(p.weapon==='staff'?28:p.weapon==='club'?15:20)*s);
   // head
   vol(g,cx,headY,headR,headR*1.12,p.skin);
-  // face: brow shadow, eye whites + pupils, nose hint, mouth — readable at melee range
-  g.fillStyle='rgba(20,12,8,0.35)'; g.fillRect(cx-headR*0.65,headY-headR*0.45,headR*1.3,headR*0.28); // brow shadow
+  // face: sockets, whites, pupils, heavy brow, nose, mouth — must read at melee range
+  g.fillStyle='rgba(20,12,8,0.45)'; g.fillRect(cx-headR*0.68,headY-headR*0.5,headR*1.36,headR*0.34); // brow band
   for(const dd of [-1,1]){
-    g.fillStyle='#e8e0d0'; g.fillRect(cx+dd*headR*0.42-1.8,headY-headR*0.18,3.6,2.6);
-    g.fillStyle='#181008'; g.fillRect(cx+dd*headR*0.42-0.9,headY-headR*0.14,1.9,1.9);
+    g.fillStyle='rgba(15,10,6,0.5)'; g.beginPath(); g.ellipse(cx+dd*headR*0.4,headY-headR*0.08,headR*0.26,headR*0.2,0,0,7); g.fill(); // socket
+    g.fillStyle='#ece4d4'; g.fillRect(cx+dd*headR*0.4-2.3,headY-headR*0.18,4.6,3.2);
+    g.fillStyle='#100c08'; g.fillRect(cx+dd*headR*0.4-1.1,headY-headR*0.14,2.3,2.4);
   }
-  g.fillStyle='rgba(20,12,8,0.4)'; g.fillRect(cx-0.8,headY+headR*0.1,1.6,headR*0.28); // nose
-  g.fillStyle='#3a1410'; g.fillRect(cx-headR*0.3,headY+headR*0.52,headR*0.6,1.8);     // mouth
-  if(frame==='attack'){ g.fillStyle='#200c0a'; g.fillRect(cx-headR*0.28,headY+headR*0.44,headR*0.56,headR*0.3);
-    g.fillStyle='#e8e4d0'; g.fillRect(cx-headR*0.24,headY+headR*0.44,headR*0.48,1.4); } // war-cry teeth
-  if(p.eyesGlow){ g.fillStyle=p.eyesGlow; g.fillRect(cx-headR*0.5,headY-headR*0.2,3,3); g.fillRect(cx+headR*0.26,headY-headR*0.2,3,3); }
+  g.strokeStyle='rgba(20,12,8,0.55)'; g.lineWidth=2;
+  g.beginPath(); g.moveTo(cx-1,headY-headR*0.02); g.lineTo(cx-1.5,headY+headR*0.34); g.stroke(); // nose
+  g.fillStyle='#33120e'; g.fillRect(cx-headR*0.32,headY+headR*0.5,headR*0.64,2.6);   // mouth
+  if(frame==='attack'){ g.fillStyle='#1c0a08'; g.fillRect(cx-headR*0.3,headY+headR*0.42,headR*0.6,headR*0.34);
+    g.fillStyle='#ece8d4'; g.fillRect(cx-headR*0.26,headY+headR*0.42,headR*0.52,1.8); } // war-cry teeth
+  if(p.eyesGlow){ g.fillStyle=p.eyesGlow; g.fillRect(cx-headR*0.5,headY-headR*0.2,3.4,3.4); g.fillRect(cx+headR*0.26,headY-headR*0.2,3.4,3.4); }
   // headgear
   if(p.hood){ g.fillStyle=p.hood; g.beginPath(); g.arc(cx,headY-headR*0.15,headR*1.25,Math.PI*0.95,Math.PI*2.05); g.lineTo(cx+headR*1.1,headY+headR*0.9); g.lineTo(cx-headR*1.1,headY+headR*0.9); g.fill();
     g.fillStyle='rgba(8,6,4,0.55)'; g.beginPath(); g.ellipse(cx,headY,headR*0.72,headR*0.8,0,0,7); g.fill(); // hood shadow
     for(const dd of [-1,1]){ g.fillStyle=p.eyesGlow||'#e8dcc0'; g.fillRect(cx+dd*headR*0.36-1.8,headY-headR*0.12,3.6,2.8); }
     g.fillStyle='rgba(200,160,130,0.8)'; g.fillRect(cx-headR*0.2,headY+headR*0.42,headR*0.4,2); }
-  if(p.helmet){ vol(g,cx,headY-headR*0.45,headR*1.05,headR*0.7,p.helmet,{noline:1}); if(p.plume){ g.strokeStyle=p.plume; g.lineWidth=3; g.beginPath(); g.moveTo(cx,headY-headR*1.1); g.quadraticCurveTo(cx+6,headY-headR*2.1,cx+11,headY-headR*1.4); g.stroke(); } }
+  if(p.helmet){ vol(g,cx,headY-headR*0.55,headR*1.05,headR*0.62,p.helmet,{noline:1});
+    g.fillStyle=p.helmet; g.fillRect(cx-1.6,headY-headR*0.4,3.2,headR*0.6); // nasal bar — eyes stay visible
+    if(p.plume){ g.strokeStyle=p.plume; g.lineWidth=3; g.beginPath(); g.moveTo(cx,headY-headR*1.1); g.quadraticCurveTo(cx+6,headY-headR*2.1,cx+11,headY-headR*1.4); g.stroke(); } }
   if(p.hair&&!p.helmet&&!p.hood){ g.fillStyle=p.hair; g.beginPath(); g.arc(cx,headY-headR*0.35,headR*0.95,Math.PI*0.9,Math.PI*2.1); g.fill(); }
   if(p.mask){ g.fillStyle='#e8e4d0'; g.fillRect(cx-headR*0.8,headY-headR*0.5,headR*1.6,headR*0.9); g.fillStyle='#181008'; g.fillRect(cx-headR*0.45,headY-2,2,3); g.fillRect(cx+headR*0.25,headY-2,2,3); }
   if(p.crown){ g.fillStyle='#e8c860'; g.beginPath(); const cy=headY-headR*0.9;

@@ -101,12 +101,13 @@ Art.bakeTextures=function(){
     if(bone&&b>0.6) return palIdx(0,9+(x%2));
     return palIdx(0,clamp(2+b*(3+n*5)+g,0,11)|0);
   });
-  // 6: vault marble — dark green-black, sparse connected gold veining
+  // 6: vault marble — banded courses, rare bold veining, gold string-course
   Art.walls[6]=bakePix(64,64,(x,y)=>{
-    const v=Math.abs(N3(x/22,y/9)-0.5)<0.014;
-    const b=brickPat(x,y,64,21,2);
-    if(v&&b>0.3) return palIdx(5,7+((x>>1)+(y>>1))%3);
-    return palIdx(13,1+(b*2.5+N2(x/4,y/4)*1.6|0));
+    if(y%21<2) return palIdx(5,6+(x%2)); // gold string-courses between marble bands
+    const v=Math.abs(N3(x/26,y/11)-0.5)<0.010;
+    if(v) return palIdx(5,8+((x>>2)%2));
+    const band=(y/21|0)%2;
+    return palIdx(13,1+band+(N2(x/6,y/6)*1.4|0));
   });
   // 7: wood door — planks + iron bands + ring
   Art.walls[7]=bakePix(64,64,(x,y)=>{
