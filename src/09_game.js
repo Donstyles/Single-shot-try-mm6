@@ -260,8 +260,16 @@ const Game = {
       for(const m of map.monsters) if(m.hp>0&&dist2(m.x,m.y,x,y)<0.5*0.5) return true;
       return false;
     };
+    const cx0=this.px, cy0=this.py;
     if(!blocked(this.px+dx,this.py)) this.px+=dx;
     if(!blocked(this.px,this.py+dy)) this.py+=dy;
+    if(this.px===cx0&&this.py===cy0&&(dx||dy)){ // wedged (round decor) — slide along the tangent
+      const m1=Math.hypot(dx,dy)||1;
+      for(const [tx2,ty2] of [[-dy/m1,dx/m1],[dy/m1,-dx/m1]]){
+        const k=m1*0.8;
+        if(!blocked(this.px+tx2*k,this.py+ty2*k)){ this.px+=tx2*k; this.py+=ty2*k; break; }
+      }
+    }
   },
   checkPortal(){
     const map=World.maps[this.mapId];
