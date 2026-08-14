@@ -78,17 +78,17 @@ Art.bakeTextures=function(){
     const crack=N2(x/2.2,y/2.2)>0.82;
     return palIdx(11,crack?2:3+(n*8|0));
   });
-  // 4: dungeon brick
+  // 4: dungeon brick (catacombs) — rough, high-frequency grain
   Art.walls[4]=bakePix(64,64,(x,y)=>{
-    const b=brickPat(x,y,16,8,1.6), n=N(x/4,y/4);
-    return palIdx(11,1+b*(4+n*5)|0);
+    const b=brickPat(x,y,16,8,1.6), n=N(x/4,y/4), g=N2(x/1.3,y/1.3)*1.6-0.8;
+    return palIdx(11,clamp(1+b*(4+n*5)+g,0,10)|0);
   });
-  // 5: crypt stone — pale ashlar, subtle bone inlay
+  // 5: crypt stone — pale ashlar, subtle bone inlay, chiseled grain
   Art.walls[5]=bakePix(64,64,(x,y)=>{
-    const b=brickPat(x,y,32,13,2), n=N(x/5,y/5);
+    const b=brickPat(x,y,32,13,2), n=N(x/5,y/5), g=N2(x/1.4,y/1.4)*1.6-0.8;
     const bone=(y%13>4&&y%13<8)&&N2(x/3,17)>0.8;
     if(bone&&b>0.6) return palIdx(0,9+(x%2));
-    return palIdx(0,2+b*(3+n*5)|0);
+    return palIdx(0,clamp(2+b*(3+n*5)+g,0,11)|0);
   });
   // 6: vault marble — dark green-black with gold veins
   Art.walls[6]=bakePix(64,64,(x,y)=>{
@@ -236,7 +236,7 @@ Art.bakeFont=function(){
   const font={sizes:{},draw:null,width:null};
   const cnv=document.createElement('canvas'); cnv.width=48; cnv.height=48;
   const g=cnv.getContext('2d',{willReadFrequently:true});
-  const EXTRA='’‘“”—–◆✓►◄−×…é↑↓←→';
+  const EXTRA='’‘“”—–◆✓►◄−×…é↑↓←→·';
   for(const sz of sizes){
     const glyphs={};
     g.font='bold '+sz+'px Georgia, "Times New Roman", serif';

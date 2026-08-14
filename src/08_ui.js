@@ -358,6 +358,10 @@ const UI = {
           E.fillRect(ox+s.x*cs-1,oy+s.y*cs-1,cs+2,cs+2,palIdx(5,10));
           if(cs>=3) E.text(shopLetter[s.shop],ox+s.x*cs+cs+1,oy+s.y*cs-3,{size:9,ramp:5,bright:true});
         }}
+        // wizard eye: living creatures glow on the map while the spell holds
+        const eye=Game.party.buffs.wizardEye&&Game.party.buffs.wizardEye.until>Game.clock.min;
+        if(eye){ for(const mo of m.monsters){ if(mo.hp>0) E.fillRect(ox+mo.x*cs-1|0,oy+mo.y*cs-1|0,3,3,palIdx(6,12)); }
+          E.text('wizard eye',SCREEN_W-120,SCREEN_H-24,{size:9,ramp:6}); }
         // player arrow
         const px2=ox+Game.px*cs, py2=oy+Game.py*cs;
         E.fillRect(px2-2|0,py2-2|0,5,5,palIdx(14,10));
