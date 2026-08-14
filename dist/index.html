@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>Vintavia</title>
+<link rel="icon" href="data:,">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3362,7 +3363,7 @@ const Game = {
       if((this.px|0)===p.x&&(this.py|0)===p.y&&p.to){
         // mid-combat, stairs wait for a deliberate Use — no accidental level flees
         if(this.monstersNear(7).some(m=>m.state==='chase')){
-          if(performance.now()-(this._stairNote||0)>3000){ this._stairNote=performance.now(); UI.say('Press Use to take the stairs — the fight rages on!'); }
+          if(this._stairNote===undefined||performance.now()-this._stairNote>3000){ this._stairNote=performance.now(); UI.say('Press Use to take the stairs — the fight rages on!'); }
           return;
         }
         this.transition(p.to,p.tx,p.ty);
@@ -3723,6 +3724,10 @@ const Game = {
     if(best&&best.kind==='chest'){ const ch=best.ch; {
         const key=this.mapId+':'+ch.id;
         if(this.flags.chests[key]){ UI.say('Empty.'); return; }
+        if(ch.special){ // unique relics are never destroyed — demand room first
+          const free=this.party.pcs.reduce((n,pc)=>n+pc.items.filter(x=>!x).length,0);
+          if(free<2){ UI.say('Your packs are stuffed — make room before opening this.'); Audio2.sfx('error'); return; }
+        }
         this.flags.chests[key]=1;
         const r=RNG.get('loot');
         // trapped? (seeded per chest, disarmed by the party's best hand)
@@ -3763,6 +3768,11 @@ const Game = {
     UI.say('Nothing here answers.');
   },
   lootCorpse(c){
+    const questItems=c.items.filter(it=>ITEMS[it.id].slot==='quest');
+    if(questItems.length){
+      const free=this.party.pcs.reduce((n,pc)=>n+pc.items.filter(x=>!x).length,0);
+      if(free<questItems.length){ UI.say('You cannot carry everything here — make room first.'); Audio2.sfx('error'); return; }
+    }
     c.looted=true;
     this.party.gold+=c.gold; this.stats.goldEarned+=c.gold;
     let msg='Searched the '+Monsters.def(c.mid).name.toLowerCase()+': '+c.gold+' gold';
@@ -4062,6 +4072,22 @@ const Game = {
     let d;
     try{ d=JSON.parse(localStorage.getItem('vintavia_'+slot)); }catch(e){ return false; }
     if(!d||d.v!==SAVE_VERSION){ if(d) UI.say('Save from an older build — starting fresh is safest.'); return false; }
+    // schema sniff BEFORE touching live state — hand-tampered saves must not crash-loop
+    if(!d.party||!Array.isArray(d.party.pcs)||d.party.pcs.length!==4||
+       typeof d.px!=='number'||typeof d.py!=='number'||typeof d.clock!=='number'||
+       !['outdoor','dun1','dun2','dun3'].includes(d.mapId)||typeof d.seed!=='string'){
+      UI.say('That save is damaged and cannot be read.'); return false;
+    }
+    try{ return this._loadValidated(d); }
+    catch(e){
+      if(typeof Debug!=='undefined') Debug.errors.push('load failed: '+e);
+      RNG.reset(); RNG.worldSeed='vintavia-1'; World.build();
+      this.party=null; this.state='title'; UI.open(UI.titleScreen());
+      UI.say('That save could not be restored.');
+      return false;
+    }
+  },
+  _loadValidated(d){
     RNG.reset(); RNG.worldSeed=d.seed;
     World.build();
     RNG.restore(d.rng);
