@@ -440,22 +440,25 @@ function bakeAllIcons(){
 // ---------- paperdolls (92x150 base + overlays drawn by UI) ----------
 function bakePaperdolls(){
   const W=92,H=150;
-  const base=(skin)=>bakeFromCanvas(W,H,g=>{
+  const base=(skin,hairC,tunic)=>bakeFromCanvas(W,H,g=>{
     const cx=W/2;
-    // MM6-style: body against dark leather backdrop
+    // MM6-style: figure against dark leather backdrop
     vol(g,cx,H-70,26,60,'#241c14',{noline:1});
     const hipY=H-52, chestY=hipY-30, headY=chestY-24, hr=11;
     limb(g,cx-6,hipY,cx-8,H-8,9,skin); limb(g,cx+6,hipY,cx+8,H-8,9,darken(skin,12));
-    g.fillStyle='#5a4a34'; g.fillRect(cx-13,hipY-8,26,14); // breeches
-    vol(g,cx,chestY+12,15,22,skin,{noline:1});
+    g.fillStyle='#4a3a26'; g.fillRect(cx-13,hipY-8,26,16); // breeches
+    g.fillStyle='#2c2218'; g.fillRect(cx-9,H-16,8,10); g.fillRect(cx+1,H-16,8,10); // boots base
+    vol(g,cx,chestY+12,15,22,tunic,{noline:1}); // tunic
+    g.fillStyle='#3a2a14'; g.fillRect(cx-14,hipY-10,28,4); // belt
     limb(g,cx-13,chestY+4,cx-17,chestY+34,7,skin); limb(g,cx+13,chestY+4,cx+17,chestY+34,7,darken(skin,12));
-    vol(g,cx,headY,hr,hr*1.2,skin,{noline:1});
+    vol(g,cx,headY,hr,hr*1.2,skin,{noline:1,hi:lighten(skin,35)});
+    g.fillStyle=hairC; g.beginPath(); g.arc(cx,headY-hr*0.3,hr*0.95,Math.PI*0.95,Math.PI*2.05); g.fill();
     g.fillStyle='#181008'; g.fillRect(cx-5,headY-2,2.5,2.5); g.fillRect(cx+2,headY-2,2.5,2.5);
+    g.strokeStyle='rgba(60,30,16,0.5)'; g.lineWidth=1.5; g.beginPath(); g.moveTo(cx,headY); g.lineTo(cx-1,headY+5); g.stroke();
     g.strokeStyle='rgba(90,30,25,0.8)'; g.lineWidth=2; g.beginPath(); g.moveTo(cx-3,headY+8); g.lineTo(cx+3,headY+8); g.stroke();
-    return;
   },10);
-  Art.paperdolls.male=base('#d0a070');
-  Art.paperdolls.female=base('#d8ac7c');
+  Art.paperdolls.male=base('#d0a070','#4a3828','#6a5a44');
+  Art.paperdolls.female=base('#d8ac7c','#6a4020','#5a4a5a');
 }
 
 // ---------- bake driver ----------

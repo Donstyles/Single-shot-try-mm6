@@ -86,10 +86,9 @@ Rules.armorClass=function(pc,items){ // items: resolved equip item defs (ITEMS[i
   }
   return Math.max(0,ac);
 };
-Rules.attackBonus=function(pc,weapon){ // weapon: item def or null (fists)
-  const stat=(weapon&&weapon.skill==='bow')?pc.stats.accuracy:pc.stats.accuracy;
+Rules.attackBonus=function(pc,weapon){ // weapon: item def or null (fists); accuracy governs all to-hit
   const sk=weapon?(pc.skills[weapon.skill]||0):0;
-  return Rules.statMod(stat)+sk+(weapon&&weapon.bonusHit||0);
+  return Rules.statMod(pc.stats.accuracy)+sk+(weapon&&weapon.bonusHit||0);
 };
 Rules.damageRange=function(pc,weapon){
   const m=Rules.statMod(weapon&&weapon.skill==='bow'?pc.stats.accuracy:pc.stats.might);
@@ -142,6 +141,13 @@ Rules.restResult=function(pc){ // full hp/sp unless dead/diseased; returns new c
   return {hp:Math.ceil(Rules.maxHP(pc)*f),sp:Math.ceil(Rules.maxSP(pc)*f),cond};
 };
 Rules.outdoorAmbushChance=0.25;
+
+// ---------- chest traps (Disarm Traps skill finally earns its keep) ----------
+Rules.trapChance=function(tier){ return clamp(0.15+tier*0.15,0,0.7); };
+Rules.trapDamage=function(rand,tier){ return rand.roll(2,4,tier*3); };
+Rules.disarmed=function(rand,bestDisarm,tier){ // roll best party skill vs chest tier
+  return rand.next() < clamp(0.25+bestDisarm*0.12-tier*0.08,0.05,0.97);
+};
 
 // ---------- conditions (poison ticks etc) ----------
 Rules.poisonTick=function(pc){ return Math.max(1,Math.round(pc.level/2)); }; // hp lost per game hour

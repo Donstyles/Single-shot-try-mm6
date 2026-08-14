@@ -131,15 +131,16 @@ Art.bakeTextures=function(){
     return palIdx(1,9+(N(x/5,y/5)*3|0));
   });
   // floors
-  Art.floors[0]=bakePix(64,64,(x,y)=>{ // grass
-    const n=N(x/5,y/5), b=N2(x/1.7,y/1.7);
-    let s=6+n*5+(b>0.8?3:0);
+  Art.floors[0]=bakePix(64,64,(x,y)=>{ // grass: blade speckle over tonal patches
+    const n=N(x/5,y/5), b=N2(x/1.7,y/1.7), fine=N2(x/1.1,y/1.1);
+    let s=6+n*4+(b>0.8?3:0)+(fine>0.72?1.5:fine<0.25?-1.5:0);
     return palIdx(b>0.9?9:2,clamp(s,3,13)|0);
   });
-  Art.floors[1]=bakePix(64,64,(x,y)=>{ // dirt road
-    const n=N(x/6,y/6), stone=N2(x/2.5,y/2.5)>0.86;
+  Art.floors[1]=bakePix(64,64,(x,y)=>{ // dirt road: ruts, pebbles, grain
+    const n=N(x/6,y/6), stone=N2(x/2.5,y/2.5)>0.86, fine=N2(x/1.2,y/1.2);
     if(stone) return palIdx(0,8);
-    return palIdx(1,5+(n*4|0));
+    const rut=Math.abs(((y+x*0.15)%21)-10)<1.4?-1.2:0;
+    return palIdx(1,clamp(5+n*4+rut+(fine-0.5)*2.2,2,11)|0);
   });
   Art.floors[2]=bakePix(64,64,(x,y)=>{ // cobble
     const cx=x%16-8, cy=y%16-8, d=Math.hypot(cx,cy)/8;

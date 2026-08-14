@@ -204,6 +204,16 @@ function eq(a,b,msg){ ok(a===b,msg+' (got '+a+', want '+b+')'); }
   party.quests.main3={state:'turned'};
   ok(S.Quests.offerable(party,'main4'),'main4 opens');
 }
+// ---------- traps ----------
+{
+  const r=new S.Rand(9);
+  for(let t=0;t<5;t++){ const c=S.Rules.trapChance(t); ok(c>=0&&c<=0.7,'trap chance bounded tier '+t); }
+  ok(S.Rules.trapChance(4)>S.Rules.trapChance(0),'deeper chests trap more');
+  ok(S.Rules.trapDamage(r,4)>0,'trap damage positive');
+  let hits0=0,hits7=0;
+  for(let i=0;i<400;i++){ if(S.Rules.disarmed(new S.Rand(i),0,2)) hits0++; if(S.Rules.disarmed(new S.Rand(i),7,2)) hits7++; }
+  ok(hits7>hits0,'disarm skill improves odds ('+hits0+' vs '+hits7+')');
+}
 // ---------- shops ----------
 {
   for(const shop in S.SHOP_STOCK) for(const id of S.SHOP_STOCK[shop]) ok(S.ITEMS[id],'shop '+shop+' stock valid: '+id);

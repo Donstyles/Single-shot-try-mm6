@@ -592,6 +592,22 @@ const Game = {
         if(this.flags.chests[key]){ UI.say('Empty.'); return; }
         this.flags.chests[key]=1;
         const r=RNG.get('loot');
+        // trapped? (seeded per chest, disarmed by the party's best hand)
+        const trapRand=RNG.world('trap:'+key);
+        if(trapRand.chance(Rules.trapChance(ch.tier))){
+          const best=Math.max(...this.party.pcs.map(pc=>pc.skills.disarm||0));
+          if(Rules.disarmed(r,best,ch.tier)){
+            Log.add(best>0?'A needle trap — picked clean and disarmed.':'A trap clicks... and jams. Luck favors fools.',palIdx(8,12));
+          } else {
+            const victims=this.party.pcs.filter(pc=>pc.cond==='ok');
+            if(victims.length){
+              const pc=victims[r.int(0,victims.length-1)];
+              const dmg=Rules.trapDamage(r,ch.tier);
+              Audio2.sfx('spell_fire');
+              this.damagePc(pc,dmg,'A chest trap');
+            }
+          }
+        }
         const loot=Loot.roll(r,ch.tier);
         let msg='You find '+loot.gold+' gold';
         this.party.gold+=loot.gold; this.stats.goldEarned+=loot.gold;
