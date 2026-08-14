@@ -289,7 +289,17 @@ Art.bakeFont=function(){
 function stonePix(x,y,N){ return 5+(N(x/7,y/7)*3|0)+(N(x/2.3,y/2.3)>0.85?-2:0); }
 Art.bakeUI=function(){
   const N=makeNoise('ui1',32), N2=makeNoise('ui2',16);
-  // full-screen frame: stone everywhere except viewport hole
+  // full-screen frame: stone everywhere except viewport hole, with carved ornament
+  const medallion=(x,y,cx,cy,r)=>{ // carved rosette relief: -2..+3 shade delta, 0 outside
+    const d=Math.hypot(x-cx,y-cy);
+    if(d>r) return 0;
+    const a=Math.atan2(y-cy,x-cx);
+    const petal=Math.cos(a*8)*0.5+0.5;
+    if(d>r*0.85) return -2;                       // recessed ring
+    if(d>r*0.35) return petal>0.55?2:-1;          // eight petals
+    if(d>r*0.15) return 3;                        // boss
+    return 1;
+  };
   Art.ui.frame=bakePix(SCREEN_W,SCREEN_H,(x,y)=>{
     const inVP=x>=VP.x&&x<VP.x+VP.w&&y>=VP.y&&y<VP.y+VP.h;
     if(inVP) return 0;
@@ -302,6 +312,10 @@ Art.bakeUI=function(){
     // carved block seams
     const seam=((x%80<1&&y>VP.y+VP.h)||(y%60<1&&(x<VP.x||x>=VP.x+VP.w)&&y<VP.y+VP.h));
     if(seam) s-=3;
+    // corner rosettes + right-panel fluting (MM6 loved its masonry ornament)
+    s+=medallion(x,y,556,462,14)+medallion(x,y,232,462,12);
+    if(x>632&&x<640&&y>8&&y<470&&((x-632)%4<2)) s-=1; // edge fluting
+    if(y>320&&y<328&&x>480&&x<632&&((x-480)%8<4)) s+=(x%8<2?-1:1); // dentil strip under panel
     return palIdx(0,clamp(s,1,13));
   });
   // parchment full-screen for menu screens

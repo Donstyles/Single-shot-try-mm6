@@ -95,7 +95,7 @@ function parseAscii(rows,opts){
       case ':': floor[i]=1; break; // gate opening in town wall
       case 'D': cells[i]=7; out.doors[x+','+y]={open:false}; break;
       case 'X': cells[i]=8; out.doors[x+','+y]={open:false,needs:'q_sigil'}; break;
-      case 's': out.decor.push({kind:'sign',x:x+0.5,y:y+0.5}); floor[i]=opts.dotFloor??floorId; break;
+      case 's': out.decor.push({kind:'sign',x:x+0.95,y:y+0.3}); floor[i]=opts.dotFloor??floorId; break; // flanks the door it serves
       case 'F': out.decor.push({kind:'fountain',x:x+0.5,y:y+0.5,solid:true}); floor[i]=2; break;
       case 'U': out.portals.push({x,y,kind:'up'}); break;
       case 'S': out.portals.push({x,y,kind:'down'}); break;
