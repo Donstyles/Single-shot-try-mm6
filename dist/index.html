@@ -285,6 +285,13 @@ Rules.restResult=function(pc){ // full hp/sp unless dead/diseased; returns new c
 };
 Rules.outdoorAmbushChance=0.25;
 
+// ---------- chest traps (Disarm Traps skill finally earns its keep) ----------
+Rules.trapChance=function(tier){ return clamp(0.15+tier*0.15,0,0.7); };
+Rules.trapDamage=function(rand,tier){ return rand.roll(2,4,tier*3); };
+Rules.disarmed=function(rand,bestDisarm,tier){ // roll best party skill vs chest tier
+  return rand.next() < clamp(0.25+bestDisarm*0.12-tier*0.08,0.05,0.97);
+};
+
 // ---------- conditions (poison ticks etc) ----------
 Rules.poisonTick=function(pc){ return Math.max(1,Math.round(pc.level/2)); }; // hp lost per game hour
 Rules.conditionColor=function(cond){ return cond==='ok'?palIdx(2,13):cond==='poisoned'?palIdx(13,10):cond==='diseased'?palIdx(9,9):cond==='unconscious'?palIdx(5,10):palIdx(14,8); };
@@ -798,9 +805,9 @@ const QUESTS = {
   main2:{name:'Silver for the Temple', giver:'priest', kind:'fetch', item:'q_censer',
     desc:'Grave-robbers dragged our silver censer into the Crypt east of town. Without it I cannot bless the harvest. Bring it back, and the Light will remember you.',
     done:'The censer returns! Bless you, friends. Take this offering.', gold:400, xp:1200, requires:null},
-  main3:{name:'The Vault Sigil', giver:'mayor', kind:'fetchkill', item:'q_sigil', target:'necromancer',
+  main3:{name:'The Vault Sigil', giver:'mayor', kind:'fetchkill', item:'q_sigil', target:'necromancer', keepItem:true,
     desc:'You have proven yourselves. Listen: below the Crypt a necromancer digs toward the old Vault where the Crown of Vintavia sleeps. He carries the Vault Sigil. Take it from him.',
-    done:'The Sigil! Then the Vault can be opened. One task remains, heroes.', gold:800, xp:2500, requires:['main1','main2']},
+    done:'The Sigil! Keep it close — only its bearer can break the Vault’s seal. One task remains, heroes.', gold:800, xp:2500, requires:['main1','main2']},
   main4:{name:'The Crown of Vintavia', giver:'mayor', kind:'fetch', item:'q_crown',
     desc:'The Sigil opens the sealed door on the lowest level. Beyond it waits the Lich that stole our Crown a century ago. Destroy it. Bring the Crown home, and your names outlive us all.',
     done:'The Crown... after a hundred years. Vintavia is whole again. Hail, Heroes of Vintavia!', gold:2000, xp:8000, requires:['main3'], final:true},
@@ -1979,22 +1986,25 @@ function bakeAllIcons(){
 // ---------- paperdolls (92x150 base + overlays drawn by UI) ----------
 function bakePaperdolls(){
   const W=92,H=150;
-  const base=(skin)=>bakeFromCanvas(W,H,g=>{
+  const base=(skin,hairC,tunic)=>bakeFromCanvas(W,H,g=>{
     const cx=W/2;
-    // MM6-style: body against dark leather backdrop
+    // MM6-style: figure against dark leather backdrop
     vol(g,cx,H-70,26,60,'#241c14',{noline:1});
     const hipY=H-52, chestY=hipY-30, headY=chestY-24, hr=11;
     limb(g,cx-6,hipY,cx-8,H-8,9,skin); limb(g,cx+6,hipY,cx+8,H-8,9,darken(skin,12));
-    g.fillStyle='#5a4a34'; g.fillRect(cx-13,hipY-8,26,14); // breeches
-    vol(g,cx,chestY+12,15,22,skin,{noline:1});
+    g.fillStyle='#4a3a26'; g.fillRect(cx-13,hipY-8,26,16); // breeches
+    g.fillStyle='#2c2218'; g.fillRect(cx-9,H-16,8,10); g.fillRect(cx+1,H-16,8,10); // boots base
+    vol(g,cx,chestY+12,15,22,tunic,{noline:1}); // tunic
+    g.fillStyle='#3a2a14'; g.fillRect(cx-14,hipY-10,28,4); // belt
     limb(g,cx-13,chestY+4,cx-17,chestY+34,7,skin); limb(g,cx+13,chestY+4,cx+17,chestY+34,7,darken(skin,12));
-    vol(g,cx,headY,hr,hr*1.2,skin,{noline:1});
+    vol(g,cx,headY,hr,hr*1.2,skin,{noline:1,hi:lighten(skin,35)});
+    g.fillStyle=hairC; g.beginPath(); g.arc(cx,headY-hr*0.3,hr*0.95,Math.PI*0.95,Math.PI*2.05); g.fill();
     g.fillStyle='#181008'; g.fillRect(cx-5,headY-2,2.5,2.5); g.fillRect(cx+2,headY-2,2.5,2.5);
+    g.strokeStyle='rgba(60,30,16,0.5)'; g.lineWidth=1.5; g.beginPath(); g.moveTo(cx,headY); g.lineTo(cx-1,headY+5); g.stroke();
     g.strokeStyle='rgba(90,30,25,0.8)'; g.lineWidth=2; g.beginPath(); g.moveTo(cx-3,headY+8); g.lineTo(cx+3,headY+8); g.stroke();
-    return;
   },10);
-  Art.paperdolls.male=base('#d0a070');
-  Art.paperdolls.female=base('#d8ac7c');
+  Art.paperdolls.male=base('#d0a070','#4a3828','#6a5a44');
+  Art.paperdolls.female=base('#d8ac7c','#6a4020','#5a4a5a');
 }
 
 // ---------- bake driver ----------
@@ -2873,7 +2883,8 @@ const UI = {
       draw(){
         const E=Engine;
         E.blit(Art.ui.parchment,SCREEN_W,SCREEN_H,0,0);
-        E.textC('THE CROWN RETURNS',SCREEN_W/2,80,{size:22,ramp:5,bright:true});
+        E.blit(Art.icons.crown,24,24,SCREEN_W/2-36,20,{scale:3});
+        E.textC('THE CROWN RETURNS',SCREEN_W/2,96,{size:22,ramp:5,bright:true});
         const cp=Clock.parts(Game.clock.min);
         const lines=[
           'The Lich is dust. The Vault stands open, and the Crown of',
@@ -3330,6 +3341,7 @@ const Game = {
     }
   },
   hitMonster(m,dmg,vsUndead){
+    if(m.hp<=0) return; // already down — no double kills, no duplicate drops
     const d=Monsters.def(m.mid);
     if(vsUndead&&d.und) dmg=Math.round(dmg*vsUndead);
     m.hp-=dmg; m.hurtT=performance.now();
@@ -3338,6 +3350,7 @@ const Game = {
     else if(m.state!=='chase') m.state='chase';
   },
   killMonster(m){
+    if(m.state==='dead') return;
     const d=Monsters.def(m.mid);
     m.hp=0; m.state='dead';
     Audio2.sfx('mdie');
@@ -3396,7 +3409,7 @@ const Game = {
       const w=pc.equip.weapon?ITEMS[pc.equip.weapon.id]:null;
       pc.recovery=Rules.effectiveRecovery(pc,w,this.party.buffs);
       acted=true;
-      if(!t){ continue; }
+      if(!t||t.hp<=0){ continue; }
       const dist=Math.hypot(t.x-this.px,t.y-this.py);
       const ranged=w&&w.ranged;
       if(!ranged&&dist>1.6){ Log.add(pc.name+' cannot reach!'); continue; }
@@ -3487,6 +3500,22 @@ const Game = {
         if(this.flags.chests[key]){ UI.say('Empty.'); return; }
         this.flags.chests[key]=1;
         const r=RNG.get('loot');
+        // trapped? (seeded per chest, disarmed by the party's best hand)
+        const trapRand=RNG.world('trap:'+key);
+        if(trapRand.chance(Rules.trapChance(ch.tier))){
+          const best=Math.max(...this.party.pcs.map(pc=>pc.skills.disarm||0));
+          if(Rules.disarmed(r,best,ch.tier)){
+            Log.add(best>0?'A needle trap — picked clean and disarmed.':'A trap clicks... and jams. Luck favors fools.',palIdx(8,12));
+          } else {
+            const victims=this.party.pcs.filter(pc=>pc.cond==='ok');
+            if(victims.length){
+              const pc=victims[r.int(0,victims.length-1)];
+              const dmg=Rules.trapDamage(r,ch.tier);
+              Audio2.sfx('spell_fire');
+              this.damagePc(pc,dmg,'A chest trap');
+            }
+          }
+        }
         const loot=Loot.roll(r,ch.tier);
         let msg='You find '+loot.gold+' gold';
         this.party.gold+=loot.gold; this.stats.goldEarned+=loot.gold;
@@ -3550,7 +3579,7 @@ const Game = {
   turnInQuest(qid){
     const q=QUESTS[qid], st=this.party.quests[qid];
     if(!st||st.state!=='done') return;
-    if(q.item) this.removePartyItem(q.item,q.kind==='collect'?q.count:1);
+    if(q.item&&!q.keepItem) this.removePartyItem(q.item,q.kind==='collect'?q.count:1);
     st.state='turned';
     this.party.gold+=q.gold; this.stats.goldEarned+=q.gold;
     const alive=this.party.pcs.filter(pc=>pc.cond!=='dead');

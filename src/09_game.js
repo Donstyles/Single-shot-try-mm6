@@ -435,6 +435,7 @@ const Game = {
     }
   },
   hitMonster(m,dmg,vsUndead){
+    if(m.hp<=0) return; // already down — no double kills, no duplicate drops
     const d=Monsters.def(m.mid);
     if(vsUndead&&d.und) dmg=Math.round(dmg*vsUndead);
     m.hp-=dmg; m.hurtT=performance.now();
@@ -443,6 +444,7 @@ const Game = {
     else if(m.state!=='chase') m.state='chase';
   },
   killMonster(m){
+    if(m.state==='dead') return;
     const d=Monsters.def(m.mid);
     m.hp=0; m.state='dead';
     Audio2.sfx('mdie');
@@ -501,7 +503,7 @@ const Game = {
       const w=pc.equip.weapon?ITEMS[pc.equip.weapon.id]:null;
       pc.recovery=Rules.effectiveRecovery(pc,w,this.party.buffs);
       acted=true;
-      if(!t){ continue; }
+      if(!t||t.hp<=0){ continue; }
       const dist=Math.hypot(t.x-this.px,t.y-this.py);
       const ranged=w&&w.ranged;
       if(!ranged&&dist>1.6){ Log.add(pc.name+' cannot reach!'); continue; }
@@ -671,7 +673,7 @@ const Game = {
   turnInQuest(qid){
     const q=QUESTS[qid], st=this.party.quests[qid];
     if(!st||st.state!=='done') return;
-    if(q.item) this.removePartyItem(q.item,q.kind==='collect'?q.count:1);
+    if(q.item&&!q.keepItem) this.removePartyItem(q.item,q.kind==='collect'?q.count:1);
     st.state='turned';
     this.party.gold+=q.gold; this.stats.goldEarned+=q.gold;
     const alive=this.party.pcs.filter(pc=>pc.cond!=='dead');

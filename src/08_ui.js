@@ -613,7 +613,8 @@ const UI = {
       draw(){
         const E=Engine;
         E.blit(Art.ui.parchment,SCREEN_W,SCREEN_H,0,0);
-        E.textC('THE CROWN RETURNS',SCREEN_W/2,80,{size:22,ramp:5,bright:true});
+        E.blit(Art.icons.crown,24,24,SCREEN_W/2-36,20,{scale:3});
+        E.textC('THE CROWN RETURNS',SCREEN_W/2,96,{size:22,ramp:5,bright:true});
         const cp=Clock.parts(Game.clock.min);
         const lines=[
           'The Lich is dust. The Vault stands open, and the Crown of',
