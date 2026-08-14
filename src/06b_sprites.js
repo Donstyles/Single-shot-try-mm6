@@ -63,8 +63,8 @@ function drawHumanoid(g,W,H,frame,p){
   // legs
   limb(g,cx-4.5*s,hipY,cx-6*s-walk*0.6,groundY,6.5*s,p.legs||p.cloth2||'#4a3620');
   limb(g,cx+4.5*s,hipY,cx+6*s+walk*0.6,groundY,6.5*s,darken(p.legs||p.cloth2||'#4a3620',20));
-  // torso (broad shoulders taper to hip)
-  vol(g,cx,chestY+9*s,12*s*(p.bulk||1),16*s,p.cloth);
+  // torso (broad shoulders taper to hip; gentle rim so it never reads as a hole)
+  vol(g,cx,chestY+9*s,12*s*(p.bulk||1),16*s,p.cloth,{lo:darken(p.cloth,32)});
   vol(g,cx,chestY+2*s,12.5*s*(p.bulk||1),7*s,lighten(p.cloth,8),{noline:1}); // shoulder mass
   if(p.tabard){ g.fillStyle=p.tabard; g.fillRect(cx-5*s,chestY-2*s,10*s,24*s); }
   if(p.belt){ g.fillStyle='#3a2a14'; g.fillRect(cx-10*s,hipY-4*s,20*s,3.5*s); }
@@ -79,12 +79,21 @@ function drawHumanoid(g,W,H,frame,p){
   if(p.weapon) drawWeapon(g,p.weapon,hx,hy,atk?0.5:0.15,(p.weapon==='staff'?28:p.weapon==='club'?15:20)*s);
   // head
   vol(g,cx,headY,headR,headR*1.12,p.skin);
-  // face hint
-  g.fillStyle='#181008';
-  g.fillRect(cx-headR*0.45,headY-1,2,2); g.fillRect(cx+headR*0.2,headY-1,2,2);
-  if(p.eyesGlow){ g.fillStyle=p.eyesGlow; g.fillRect(cx-headR*0.5,headY-1,2.6,2.6); g.fillRect(cx+headR*0.2,headY-1,2.6,2.6); }
+  // face: brow shadow, eye whites + pupils, nose hint, mouth — readable at melee range
+  g.fillStyle='rgba(20,12,8,0.35)'; g.fillRect(cx-headR*0.65,headY-headR*0.45,headR*1.3,headR*0.28); // brow shadow
+  for(const dd of [-1,1]){
+    g.fillStyle='#e8e0d0'; g.fillRect(cx+dd*headR*0.42-1.8,headY-headR*0.18,3.6,2.6);
+    g.fillStyle='#181008'; g.fillRect(cx+dd*headR*0.42-0.9,headY-headR*0.14,1.9,1.9);
+  }
+  g.fillStyle='rgba(20,12,8,0.4)'; g.fillRect(cx-0.8,headY+headR*0.1,1.6,headR*0.28); // nose
+  g.fillStyle='#3a1410'; g.fillRect(cx-headR*0.3,headY+headR*0.52,headR*0.6,1.8);     // mouth
+  if(frame==='attack'){ g.fillStyle='#200c0a'; g.fillRect(cx-headR*0.28,headY+headR*0.44,headR*0.56,headR*0.3);
+    g.fillStyle='#e8e4d0'; g.fillRect(cx-headR*0.24,headY+headR*0.44,headR*0.48,1.4); } // war-cry teeth
+  if(p.eyesGlow){ g.fillStyle=p.eyesGlow; g.fillRect(cx-headR*0.5,headY-headR*0.2,3,3); g.fillRect(cx+headR*0.26,headY-headR*0.2,3,3); }
   // headgear
-  if(p.hood){ g.fillStyle=p.hood; g.beginPath(); g.arc(cx,headY-headR*0.15,headR*1.25,Math.PI*0.95,Math.PI*2.05); g.lineTo(cx+headR*1.1,headY+headR*0.9); g.lineTo(cx-headR*1.1,headY+headR*0.9); g.fill(); }
+  if(p.hood){ g.fillStyle=p.hood; g.beginPath(); g.arc(cx,headY-headR*0.15,headR*1.25,Math.PI*0.95,Math.PI*2.05); g.lineTo(cx+headR*1.1,headY+headR*0.9); g.lineTo(cx-headR*1.1,headY+headR*0.9); g.fill();
+    g.fillStyle='rgba(8,6,4,0.55)'; g.beginPath(); g.ellipse(cx,headY,headR*0.72,headR*0.8,0,0,7); g.fill(); // hood shadow
+    for(const dd of [-1,1]){ g.fillStyle=p.eyesGlow||'#d8d0b8'; g.fillRect(cx+dd*headR*0.34-1.4,headY-headR*0.1,2.8,2.2); } }
   if(p.helmet){ vol(g,cx,headY-headR*0.45,headR*1.05,headR*0.7,p.helmet,{noline:1}); if(p.plume){ g.strokeStyle=p.plume; g.lineWidth=3; g.beginPath(); g.moveTo(cx,headY-headR*1.1); g.quadraticCurveTo(cx+6,headY-headR*2.1,cx+11,headY-headR*1.4); g.stroke(); } }
   if(p.hair&&!p.helmet&&!p.hood){ g.fillStyle=p.hair; g.beginPath(); g.arc(cx,headY-headR*0.35,headR*0.95,Math.PI*0.9,Math.PI*2.1); g.fill(); }
   if(p.mask){ g.fillStyle='#e8e4d0'; g.fillRect(cx-headR*0.8,headY-headR*0.5,headR*1.6,headR*0.9); g.fillStyle='#181008'; g.fillRect(cx-headR*0.45,headY-2,2,3); g.fillRect(cx+headR*0.25,headY-2,2,3); }
@@ -236,6 +245,44 @@ const NPC_PAINTERS={
   peasant_f:(g,W,H,f)=>{ drawHumanoid(g,W,H,f,{skin:'#d8ac7c',cloth:'#6a4a5a',hood:'#8a6a4a'}); const cx=W/2; g.fillStyle='#c8b89a'; g.fillRect(cx-8,H-40,16,22); },
   guard:    (g,W,H,f)=>drawHumanoid(g,W,H,f,{skin:'#c89468',cloth:'#5a6270',helmet:'#7a8290',tabard:'#3a5a8a',weapon:'staff',bulk:1.08}),
 };
+function flameShape(g,cx,baseY,w,h,ph){ // teardrop flame rooted at baseY
+  const lean=ph?1.5:-1.2;
+  const flame=(fw,fh,color,alpha)=>{
+    g.globalAlpha=alpha; g.fillStyle=color;
+    g.beginPath();
+    g.moveTo(cx-fw/2,baseY);
+    g.quadraticCurveTo(cx-fw/2,baseY-fh*0.45,cx+lean,baseY-fh);
+    g.quadraticCurveTo(cx+fw/2,baseY-fh*0.45,cx+fw/2,baseY);
+    g.closePath(); g.fill();
+  };
+  flame(w,h,'#e05810',0.95); flame(w*0.66,h*0.72,'#ff9c30',1); flame(w*0.34,h*0.44,'#ffe890',1);
+  g.globalAlpha=1;
+  g.fillStyle='#ffd850'; g.fillRect(cx-1+(ph?2:-3),baseY-h-3,2,2); // ember
+}
+function drawSign(g,W,H,sym){
+  const cx=W/2;
+  limb(g,cx,H-2,cx,H-30,4,'#5a4428');
+  g.fillStyle='#8a6a40'; g.fillRect(cx-14,H-44,28,16); g.strokeStyle='#3a2a14'; g.strokeRect(cx-14,H-44,28,16);
+  const sy=H-36;
+  g.strokeStyle='#f0e0b0'; g.fillStyle='#f0e0b0'; g.lineWidth=2;
+  switch(sym){
+    case 'sword': g.beginPath(); g.moveTo(cx-7,sy+5); g.lineTo(cx+7,sy-5); g.stroke(); g.beginPath(); g.moveTo(cx+1,sy-4); g.lineTo(cx+4,sy-1); g.stroke(); break;
+    case 'shield': g.beginPath(); g.moveTo(cx,sy-6); g.lineTo(cx+6,sy-3); g.lineTo(cx+4,sy+4); g.lineTo(cx,sy+7); g.lineTo(cx-4,sy+4); g.lineTo(cx-6,sy-3); g.closePath(); g.stroke(); break;
+    case 'potion': g.beginPath(); g.arc(cx,sy+2,4.5,0,7); g.fill(); g.fillRect(cx-1.5,sy-6,3,5); break;
+    case 'mug': g.fillRect(cx-5,sy-4,9,10); g.beginPath(); g.arc(cx+6,sy+1,3,-1.4,1.4); g.stroke(); break;
+    case 'sun': g.beginPath(); g.arc(cx,sy,4,0,7); g.fill(); for(let i=0;i<8;i++){ const a=i/8*Math.PI*2; g.beginPath(); g.moveTo(cx+Math.cos(a)*5.5,sy+Math.sin(a)*5.5); g.lineTo(cx+Math.cos(a)*8,sy+Math.sin(a)*8); g.stroke(); } break;
+    case 'fist': g.fillRect(cx-5,sy-3,10,8); g.fillRect(cx-7,sy-1,3,4); break;
+    case 'coin': g.beginPath(); g.arc(cx,sy,6,0,7); g.stroke(); g.beginPath(); g.arc(cx,sy,2.5,0,7); g.fill(); break;
+    case 'scroll': g.fillRect(cx-6,sy-5,12,11); g.strokeStyle='#8a6a40'; g.lineWidth=1.5; for(let i=0;i<3;i++){ g.beginPath(); g.moveTo(cx-4,sy-2+i*3); g.lineTo(cx+4,sy-2+i*3); g.stroke(); } break;
+    default: g.fillRect(cx-10,sy-2,20,2); g.fillRect(cx-10,sy+2,14,2);
+  }
+}
+function drawFire(g,W,H,ph){
+  const cx=W/2;
+  g.fillStyle='#5a4428'; g.fillRect(cx-14,H-8,28,4); g.fillRect(cx-10,H-11,20,3);
+  g.fillStyle='#3a2c1c'; g.fillRect(cx-6,H-9,12,3);
+  flameShape(g,cx,H-9,14,22+(ph?3:0),ph);
+}
 function drawTree(g,W,H,variant){
   const cx=W/2, gy=H-4;
   shadowBlob(g,cx,gy,20,5);
@@ -256,15 +303,19 @@ const DECOR_PAINTERS={
   tree:  (g,W,H)=>drawTree(g,W,H,0),
   tree2: (g,W,H)=>drawTree(g,W,H,1),
   rock:  (g,W,H)=>{ shadowBlob(g,W/2,H-4,14,4); vol(g,W/2,H-14,13,10,'#7a7684'); vol(g,W/2-6,H-10,7,5,'#8a8694',{noline:1}); },
-  sign:  (g,W,H)=>{ const cx=W/2; limb(g,cx,H-2,cx,H-30,4,'#5a4428'); g.fillStyle='#8a6a40'; g.fillRect(cx-14,H-42,28,14); g.strokeStyle='#3a2a14'; g.strokeRect(cx-14,H-42,28,14); g.fillStyle='#3a2a14'; g.fillRect(cx-10,H-38,20,2); g.fillRect(cx-10,H-34,14,2); },
+  sign:  (g,W,H)=>drawSign(g,W,H,null),
+  sign_weapon:(g,W,H)=>drawSign(g,W,H,'sword'), sign_armor:(g,W,H)=>drawSign(g,W,H,'shield'),
+  sign_guild:(g,W,H)=>drawSign(g,W,H,'potion'), sign_tavern:(g,W,H)=>drawSign(g,W,H,'mug'),
+  sign_temple:(g,W,H)=>drawSign(g,W,H,'sun'), sign_train:(g,W,H)=>drawSign(g,W,H,'fist'),
+  sign_bank:(g,W,H)=>drawSign(g,W,H,'coin'), sign_hall:(g,W,H)=>drawSign(g,W,H,'scroll'),
   fountain:(g,W,H)=>{ const cx=W/2; vol(g,cx,H-8,22,7,'#8a8694'); g.fillStyle='#4a7ab8'; g.beginPath(); g.ellipse(cx,H-9,17,4.5,0,0,7); g.fill(); limb(g,cx,H-9,cx,H-30,5,'#7a7684'); vol(g,cx,H-32,6,4,'#8a8694'); g.strokeStyle='#9ac8e8'; g.lineWidth=1.5; g.beginPath(); g.moveTo(cx-3,H-30); g.quadraticCurveTo(cx-9,H-22,cx-11,H-12); g.stroke(); g.beginPath(); g.moveTo(cx+3,H-30); g.quadraticCurveTo(cx+9,H-22,cx+11,H-12); g.stroke(); },
   lamp:  (g,W,H)=>{ const cx=W/2; limb(g,cx,H-2,cx,H-44,3.5,'#2c2c34'); g.fillStyle='#2c2c34'; g.fillRect(cx-8,H-46,16,3); vol(g,cx,H-52,6,7,'#e8c860',{noline:1}); g.fillStyle='#2c2c34'; g.fillRect(cx-5,H-60,10,3); },
-  campfire:(g,W,H)=>{ const cx=W/2; g.fillStyle='#5a4428'; g.fillRect(cx-14,H-8,28,4); g.fillRect(cx-10,H-11,20,3); vol(g,cx,H-20,7,11,'#e87820',{noline:1,hi:'#ffe890'}); vol(g,cx,H-26,3.5,6,'#ffd850',{noline:1}); },
-  campfire_b:(g,W,H)=>{ const cx=W/2; g.fillStyle='#5a4428'; g.fillRect(cx-14,H-8,28,4); g.fillRect(cx-10,H-11,20,3); vol(g,cx-1,H-19,6,9,'#e05810',{noline:1,hi:'#ffd870'}); vol(g,cx+1,H-27,3,7,'#ffe060',{noline:1}); },
+  campfire:(g,W,H)=>drawFire(g,W,H,0),
+  campfire_b:(g,W,H)=>drawFire(g,W,H,1),
   tent:  (g,W,H)=>{ const cx=W/2; g.fillStyle='#8a7450'; g.beginPath(); g.moveTo(cx-22,H-4); g.lineTo(cx,H-34); g.lineTo(cx+22,H-4); g.fill(); g.fillStyle='#5a4a30'; g.beginPath(); g.moveTo(cx-6,H-4); g.lineTo(cx,H-16); g.lineTo(cx+6,H-4); g.fill(); g.strokeStyle='#3a2e1c'; g.lineWidth=1.5; g.beginPath(); g.moveTo(cx-22,H-4); g.lineTo(cx,H-34); g.lineTo(cx+22,H-4); g.stroke(); },
   shrine:(g,W,H)=>{ const cx=W/2; shadowBlob(g,cx,H-4,14,4); vol(g,cx,H-10,14,5,'#8a8694'); g.fillStyle='#9a96a4'; g.fillRect(cx-8,H-38,16,28); g.fillStyle='#7a7684'; g.fillRect(cx-10,H-42,20,6); g.fillStyle='#e8c860'; g.beginPath(); g.arc(cx,H-28,4,0,7); g.fill(); },
-  brazier:(g,W,H)=>{ const cx=W/2; limb(g,cx,H-2,cx,H-14,4,'#2c2c34'); vol(g,cx,H-17,8,4,'#3c3c44'); vol(g,cx,H-25,5,7,'#e87820',{noline:1,hi:'#ffe890'}); },
-  brazier_b:(g,W,H)=>{ const cx=W/2; limb(g,cx,H-2,cx,H-14,4,'#2c2c34'); vol(g,cx,H-17,8,4,'#3c3c44'); vol(g,cx+1,H-27,4,8,'#ffb840',{noline:1}); },
+  brazier:(g,W,H)=>{ const cx=W/2; limb(g,cx,H-2,cx,H-14,4,'#2c2c34'); vol(g,cx,H-17,8,4,'#3c3c44'); flameShape(g,cx,H-16,10,16,0); },
+  brazier_b:(g,W,H)=>{ const cx=W/2; limb(g,cx,H-2,cx,H-14,4,'#2c2c34'); vol(g,cx,H-17,8,4,'#3c3c44'); flameShape(g,cx,H-16,9,18,1); },
   chest: (g,W,H)=>{ const cx=W/2; shadowBlob(g,cx,H-3,14,3.5); g.fillStyle='#7a5a30'; g.fillRect(cx-13,H-18,26,14); vol(g,cx,H-18,13,6,'#8a6a40',{noline:1}); g.fillStyle='#3a2a14'; g.fillRect(cx-13,H-12,26,2); g.fillStyle='#c8a850'; g.fillRect(cx-2,H-14,4,6); g.strokeStyle='#3a2a14'; g.strokeRect(cx-13,H-18,26,14); },
   chest_open:(g,W,H)=>{ const cx=W/2; shadowBlob(g,cx,H-3,14,3.5); g.fillStyle='#6a4c28'; g.fillRect(cx-13,H-14,26,10); g.fillStyle='#241a10'; g.fillRect(cx-11,H-13,22,5); g.fillStyle='#8a6a40'; g.fillRect(cx-13,H-26,26,6); g.strokeStyle='#3a2a14'; g.strokeRect(cx-13,H-26,26,6); g.fillStyle='#e8c860'; g.fillRect(cx-8,H-12,3,2); g.fillRect(cx+2,H-13,4,2); },
   cryptgate:(g,W,H)=>{ const cx=W/2; g.fillStyle='#8a8694'; g.fillRect(cx-20,H-8,40,6); g.fillRect(cx-20,H-46,6,40); g.fillRect(cx+14,H-46,6,40); g.fillRect(cx-24,H-52,48,8); g.fillStyle='#5a5664'; g.fillRect(cx-13,H-44,26,3); },

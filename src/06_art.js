@@ -90,12 +90,12 @@ Art.bakeTextures=function(){
     if(bone&&b>0.6) return palIdx(0,9+(x%2));
     return palIdx(0,clamp(2+b*(3+n*5)+g,0,11)|0);
   });
-  // 6: vault marble — dark green-black with gold veins
+  // 6: vault marble — dark green-black, sparse connected gold veining
   Art.walls[6]=bakePix(64,64,(x,y)=>{
-    const v=Math.abs(N3(x/16,y/5)-0.5)<0.03||Math.abs(N(x/7,y/13)-0.55)<0.02;
+    const v=Math.abs(N3(x/22,y/9)-0.5)<0.014;
     const b=brickPat(x,y,64,21,2);
-    if(v&&b>0.3) return palIdx(5,8+((x+y)%3));
-    return palIdx(13,1+(b*2.5+N2(x/4,y/4)*2|0));
+    if(v&&b>0.3) return palIdx(5,7+((x>>1)+(y>>1))%3);
+    return palIdx(13,1+(b*2.5+N2(x/4,y/4)*1.6|0));
   });
   // 7: wood door — planks + iron bands + ring
   Art.walls[7]=bakePix(64,64,(x,y)=>{
@@ -164,13 +164,13 @@ Art.bakeTextures=function(){
     return palIdx(0,4+(b*4+N2(x/6,y/6)*2|0));
   });
   // water (2 frames, swapped by Art.tick)
-  const wat=(ph)=>bakePix(64,64,(x,y)=>{
-    const w1=Math.sin((x+ph*7)/6+Math.sin((y+ph*5)/9)*2)*0.5+0.5;
-    const w2=Math.sin((y-ph*6)/5+x/11)*0.5+0.5;
+  const wat=(ph,f1,f2)=>bakePix(64,64,(x,y)=>{
+    const w1=Math.sin((x+ph*7)/f1+Math.sin((y+ph*5)/9)*2)*0.5+0.5;
+    const w2=Math.sin((y-ph*6)/f2+x/11)*0.5+0.5;
     const v=(w1*0.6+w2*0.4);
     return palIdx(3,4+(v*6|0));
   });
-  Art._water[0]=wat(0); Art._water[1]=wat(1.5);
+  Art._water[0]=wat(0,6,5); Art._water[1]=wat(2.3,7,4.4);
   Art.floors[6]=Art._water[0];
   Art.floors[7]=bakePix(64,64,(x,y)=>palIdx(5,9+(N(x/4,y/4)*3|0))); // sand
   // ceilings — one identity per dungeon level
@@ -204,9 +204,14 @@ Art.sky=function(timeMin){
   const [top,bot]=grads[bucket];
   const r=RNG.world('sky:'+bucket);
   const stars=[]; if(bucket==='night') for(let i=0;i<130;i++) stars.push([r.int(0,w-1),r.int(0,hh*0.85|0),r.chance(0.2)?2:1]);
-  const clouds=[]; const nC=bucket==='night'?4:9;
-  for(let i=0;i<nC;i++) clouds.push([r.int(0,w-1),r.int(10,hh*0.55|0),r.int(30,90),r.int(8,18),r.next()*0.5+0.3]);
   const sunX=w*0.62, sunY=bucket==='dawn'?hh*0.75:bucket==='dusk'?hh*0.8:hh*0.3;
+  const clouds=[]; const nC=bucket==='night'?4:9;
+  for(let i=0;i<nC;i++){
+    let cx0,cy0,tries=0;
+    do { cx0=r.int(0,w-1); cy0=r.int(10,hh*0.55|0); tries++; }
+    while(tries<8&&Math.abs(cx0-sunX)<90&&Math.abs(cy0-sunY)<40); // never fuse with the sun
+    clouds.push([cx0,cy0,r.int(30,90),r.int(8,18),r.next()*0.5+0.3]);
+  }
   const tex=bakePix(w,hh,(x,y)=>{
     const t=y/hh;
     let R=lerp(top[0],bot[0],t),G=lerp(top[1],bot[1],t),B=lerp(top[2],bot[2],t);
@@ -252,18 +257,31 @@ Art.bakeFont=function(){
       const d=g.getImageData(0,0,Math.min(48,gw+2),gh).data;
       const w2=Math.min(48,gw+2);
       const data=new Uint8Array(w2*gh);
-      for(let i=0;i<w2*gh;i++){ const a=d[i*4+3]; data[i]=a>190?3:a>110?2:a>36?1:0; } // low floor keeps colon dots alive
+      for(let i=0;i<w2*gh;i++){ const a=d[i*4+3]; data[i]=a>170?3:a>96?2:a>52?1:0; } // balanced: solid bowls, no AA skirt
       glyphs[ch]={w:w2,h:gh,adv:gw+1,data};
     }
     font.sizes[sz]=glyphs;
   }
-  font.width=(str,size)=>{ const gs=font.sizes[size]||font.sizes[11]; let w=0; for(const ch of str){ if(ch===':'){w+=5;continue;} const gl=gs[ch]||gs['?']; w+=gl.adv; } return w; };
+  font.width=(str,size)=>{ const gs=font.sizes[size]||font.sizes[11]; let w=0; for(const ch of str){ if(ch===':'||ch==='.'||ch===','){w+=5;continue;} if(ch==='←'||ch==='→'){w+=10;continue;} const gl=gs[ch]||gs['?']; w+=gl.adv; } return w; };
   const FALLBACK={'’':"'",'‘':"'",'“':'"','”':'"','—':'-','–':'-','−':'-','…':'...'};
   font.draw=(eng,str,x,y,opts)=>{
     const size=opts.size||11, ramp=opts.ramp===undefined?5:opts.ramp, gs=font.sizes[size]||font.sizes[11];
     const shades=opts.bright? [0,9,12,15]:[0,7,10,13];
     let cx=x|0;
     for(const ch of str){
+      if(ch==='.'||ch===','){ // hand-placed: Georgia's AA skirt makes periods read as commas
+        const by=(y|0)+Math.round(size*0.82), c=palIdx(ramp,shades[3]);
+        if(opts.shadow!==false){ eng.px(cx+2,by+1,240); eng.px(cx+3,by+1,240); }
+        eng.px(cx+1,by,c); eng.px(cx+2,by,c); eng.px(cx+1,by+1,c); eng.px(cx+2,by+1,c);
+        if(ch===','){ eng.px(cx+1,by+2,c); eng.px(cx,by+3,c); }
+        cx+=5; continue;
+      }
+      if(ch==='←'||ch==='→'){ // pixel arrows beat baked smudges
+        const ay=(y|0)+Math.round(size*0.55), c=palIdx(ramp,shades[3]), dir=ch==='→'?1:-1;
+        for(let i=0;i<7;i++) eng.px(cx+1+i,ay,c);
+        for(let i=1;i<=3;i++){ eng.px(cx+(dir>0?7-i:1+i),ay-i,c); eng.px(cx+(dir>0?7-i:1+i),ay+i,c); }
+        cx+=10; continue;
+      }
       if(ch===':'){ // hand-placed: quantization eats the top dot at small sizes
         const dotY1=(y|0)+Math.round(size*0.38), dotY2=(y|0)+Math.round(size*0.82), c=palIdx(ramp,shades[3]);
         for(const dy of [dotY1,dotY2]){ if(opts.shadow!==false){eng.px(cx+2,dy+1,240);eng.px(cx+3,dy+1,240);}

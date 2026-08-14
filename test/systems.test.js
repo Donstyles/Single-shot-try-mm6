@@ -94,7 +94,7 @@ function eq(a,b,msg){ ok(a===b,msg+' (got '+a+', want '+b+')'); }
     ok(s.sp>0,'spell '+id+' costs SP');
     ok(['fire','air','water','earth','spirit','mind','body','light','dark'].includes(s.school),id+' valid school');
     const pc=S.Rules.makePC('T','sorcerer',0);
-    pc.spells=[id]; pc.skills[s.school]=7; pc.sp=99;
+    pc.spells=[id]; pc.skills[s.school]=7; pc.sp=99; pc.hp=10;
     const can=S.Spellcraft.canCast(pc,id); ok(can.ok,id+' castable at master: '+(can.why||''));
     const eff=S.Spellcraft.resolve(pc,id,r);
     eq(eff.spCost,s.sp,id+' echoes sp cost');
@@ -105,7 +105,7 @@ function eq(a,b,msg){ ok(a===b,msg+' (got '+a+', want '+b+')'); }
   const schools={}; for(const id in S.SPELLS) schools[S.SPELLS[id].school]=1;
   eq(Object.keys(schools).length,9,'all 9 schools populated');
   // gating
-  const pc=S.Rules.makePC('T','sorcerer',0); pc.spells=['fire_ball']; pc.skills.fire=1; pc.sp=99;
+  const pc=S.Rules.makePC('T','sorcerer',0); pc.spells=['fire_ball']; pc.skills.fire=1; pc.sp=99; pc.hp=10;
   ok(!S.Spellcraft.canCast(pc,'fire_ball').ok,'expert spell blocked at novice');
   pc.skills.fire=4; ok(S.Spellcraft.canCast(pc,'fire_ball').ok,'expert spell allowed at expert');
   pc.sp=1; ok(!S.Spellcraft.canCast(pc,'fire_ball').ok,'blocked without SP');
@@ -161,7 +161,9 @@ function eq(a,b,msg){ ok(a===b,msg+' (got '+a+', want '+b+')'); }
   for(const id in maps){ const m=maps[id];
     for(const p of m.portals){ if(p.to){ const t=maps[p.to];
       ok(t,'portal target map exists '+id+'->'+p.to);
-      if(p.tx!==undefined) ok(!t.cells[Math.floor(p.ty)*t.w+Math.floor(p.tx)],'portal lands on open cell '+id+'->'+p.to);
+      ok(typeof p.tx==='number'&&typeof p.ty==='number','portal has landing coords '+id+'->'+p.to+' (the softlock scar)');
+      ok(!t.cells[Math.floor(p.ty)*t.w+Math.floor(p.tx)],'portal lands on open cell '+id+'->'+p.to);
+      ok(!t.portals.some(q=>q.x===Math.floor(p.tx)&&q.y===Math.floor(p.ty)),'portal landing is not another portal '+id+'->'+p.to);
     }}
     for(const mo of m.monsters){ ok(S.MONSTERS[mo.mid],'spawned monster has stats: '+mo.mid);
       ok(!m.cells[Math.floor(mo.y)*m.w+Math.floor(mo.x)],'monster not in wall: '+mo.mid+'@'+id+' '+mo.x+','+mo.y); }

@@ -62,7 +62,8 @@ const UI = {
     const rows=[];
     for(let i=Math.max(0,Log.lines.length-6);i<Log.lines.length;i++){
       const l=Log.lines[i]; let line='';
-      for(const wd of l.text.split(' ')){
+      for(let wd of l.text.split(' ')){
+        while(E.textW(wd,9)>logW){ let cut=wd.length; while(cut>1&&E.textW(wd.slice(0,cut),9)>logW) cut--; rows.push({t:wd.slice(0,cut),c:l.color}); wd=wd.slice(cut); }
         if(line&&E.textW(line+wd,9)>logW){ rows.push({t:line,c:l.color}); line=''; }
         line+=wd+' ';
       }
@@ -133,9 +134,13 @@ const UI = {
         E.textC('A Might and Magic VI — class homage',SCREEN_W/2,126,{size:11,ramp:1,bright:true});
         E.textC('an original fan tribute — not the trademarked game',SCREEN_W/2,142,{size:9,ramp:0});
         UI.btn(SCREEN_W/2-90,300,180,34,'New Game',()=>UI.open(UI.chargenScreen()));
-        const has=Game.hasSave('manual')||Game.hasSave('auto');
-        if(has) UI.btn(SCREEN_W/2-90,342,180,34,'Continue',()=>{ if(!Game.load(Game.hasSave('manual')?'manual':'auto')) UI.say('No save found'); });
-        UI.btn(SCREEN_W/2-90,384,180,34,Audio2.muted?'Sound: Off':'Sound: On',()=>{ Audio2.setMuted(!Audio2.muted); });
+        const newest=Game.newestSlot();
+        if(newest){
+          const meta=Game.saveMeta(newest);
+          UI.btn(SCREEN_W/2-90,342,180,34,'Continue',()=>{ if(!Game.load(newest)) UI.say('That save is from an older build.'); });
+          if(meta) E.textC((newest==='auto'?'autosave · ':'manual · ')+meta.text,SCREEN_W/2,380,{size:9,ramp:0});
+        }
+        UI.btn(SCREEN_W/2-90,398,180,34,Audio2.muted?'Sound: Off':'Sound: On',()=>{ Audio2.setMuted(!Audio2.muted); });
         E.textC('v1.0 — all art, music and code procedural',SCREEN_W/2,452,{size:9,ramp:0});
       }
     };
@@ -181,8 +186,11 @@ const UI = {
           const y=120+ai*24;
           E.text(a[0].toUpperCase()+a.slice(1),300,y+4,{size:9,ramp:0});
           E.text(''+d.stats[a],394,y+4,{size:11,ramp:15});
-          UI.btn(414,y-1,28,22,'−',()=>{ if(Rules.canLower(d.cls,d,a)){ d.stats[a]--; d.pool+=Rules.pointCost(d.stats[a]); } },{size:11});
-          UI.btn(448,y-1,28,22,'+',()=>{ const c=Rules.pointCost(d.stats[a]); if(d.stats[a]<Rules.STAT_MAX&&d.pool>=c){ d.stats[a]++; d.pool-=c; } },{size:11});
+          UI.btn(414,y-1,28,22,'−',()=>{ if(Rules.canLower(d.cls,d,a)){ d.stats[a]--; d.pool+=Rules.pointCost(d.stats[a]); } else UI.say('That is as low as a '+CLASSES[d.cls].name+' goes.'); },{size:11});
+          const stepCost=Rules.pointCost(d.stats[a]);
+          UI.btn(448,y-1,28,22,stepCost>1?'+2':'+',()=>{ if(d.stats[a]>=Rules.STAT_MAX) UI.say('Mortal limits.');
+            else if(d.pool<stepCost) UI.say(stepCost>1?'Raising past 17 costs 2 points.':'No points left.');
+            else { d.stats[a]++; d.pool-=stepCost; } },{size:11});
         });
         // class info
         const cl=CLASSES[d.cls];
@@ -216,9 +224,9 @@ const UI = {
         E.blit(Art.paperdolls.male,92,150,48,92);
         E.frameRect(46,90,96,154,palIdx(1,3));
         // gear worn on the doll itself (helm/armor/boots/weapon/shield)
-        const dollAnchors={helm:[82,96],armor:[82,148],boots:[82,204],weapon:[118,146],shield:[56,146]};
+        const dollAnchors={helm:[82,92,1],armor:[70,132,2],boots:[82,206,1],weapon:[114,142,1.4],shield:[50,142,1.4]};
         for(const slot in dollAnchors){ const it=pc.equip[slot];
-          if(it){ const [ax,ay]=dollAnchors[slot]; E.blit(Art.icons[ITEMS[it.id].icon],24,24,ax,ay); } }
+          if(it){ const [ax,ay,sc]=dollAnchors[slot]; E.blit(Art.icons[ITEMS[it.id].icon],24,24,ax,ay,{scale:sc}); } }
         const slots=[['weapon','Wpn',150,96],['shield','Off',150,126],['armor','Arm',150,156],['helm','Helm',150,186],['boots','Feet',150,216],['ring1','Ring',48,250],['ring2','Ring',96,250],['amulet','Neck',144,250]];
         for(const [slot,label,sx,sy] of slots){
           E.fillRect(sx,sy,26,26,palIdx(1,5)); E.frameRect(sx,sy,26,26,palIdx(1,3));
@@ -368,7 +376,8 @@ const UI = {
         const dx=Math.cos(Game.ang)*6, dy=Math.sin(Game.ang)*6;
         E.fillRect(px2+dx-1|0,py2+dy-1|0,3,3,palIdx(5,14));
         E.text('N ↑',SCREEN_W-70,60,{size:11,ramp:5,bright:true});
-        E.textC('W weapons · A armor · G guild · V tavern · T temple · R training · B bank · H hall     red = you',SCREEN_W/2,SCREEN_H-24,{size:9,ramp:0});
+        if(m.outdoor) E.textC('W weapons · A armor · G guild · V tavern · T temple · R training · B bank · H hall     red = you',SCREEN_W/2,SCREEN_H-24,{size:9,ramp:0});
+        else E.textC('red = you · gold = doors and stairs',SCREEN_W/2,SCREEN_H-24,{size:9,ramp:0});
       }
     };
   },
@@ -427,8 +436,8 @@ const UI = {
         E.blit(Art.portraits[npc.portrait],58,66,60,80);
         E.frameRect(58,78,62,70,palIdx(5,8));
         const text=this.text||npc.hello||(npc.rumors?npc.rumors[0]:'...');
-        UI.wrapText(text,150,90,420,11);
-        let y=250;
+        const endY=UI.wrapText(text,150,90,420,11);
+        let y=Math.max(170,endY+18);
         // quest interactions
         for(const qid in QUESTS){ const q=QUESTS[qid];
           if(q.giver!==npcId) continue;
@@ -469,11 +478,16 @@ const UI = {
         E.frameRect(58,78,62,70,palIdx(5,8));
         E.text(npc.name,60,152,{size:9,ramp:1});
         E.text('Party gold: '+P.gold+(kind==='bank'?'    Bank: '+P.bank:''),60,170,{size:11,ramp:5,bright:true});
+        // quests live in dialog — every keeper can be spoken to (campaign-critical)
+        const hasWork=Object.keys(QUESTS).some(qid=>QUESTS[qid].giver===npcId&&(Quests.offerable(P,qid)||['active','done'].includes(Quests.status(P,qid))));
+        UI.btn(36,192,110,26,hasWork?'Talk — work!':'Talk',()=>UI.open(UI.dialogScreen(npcId)),{size:9,ramp:hasWork?5:0});
         // merchant skill: best in party (rules-derived prices)
         const merch=Math.max(...P.pcs.map(pc=>pc.skills.merchant||0));
-        // pc selector for services
+        // pc selector: services use selPc; buy/sell grids follow the ACTIVE hero's pack
         if(['temple','train','guild'].includes(kind)){
           for(let i=0;i<4;i++) UI.btn(150+i*90,52,84,22,P.pcs[i].name,()=>{ selPc=i; },{size:9,down:selPc===i});
+        } else if(kind==='weapon'||kind==='armor'||kind==='tavern'){
+          for(let i=0;i<4;i++) UI.btn(150+i*90,52,84,22,P.pcs[i].name,()=>{ Game.activePc=i; },{size:9,down:Game.activePc===i});
         }
         if(mode==='hello'){ UI.wrapText(npc.hello,150,90,400,11); }
         const my=190;
@@ -483,7 +497,7 @@ const UI = {
             UI.btn(150,my,200,28,'Rest the night — '+(P.perks.freerest?'free!':Rules.tavernRestCost(P.pcs.reduce((s,p)=>s+p.level,0))+' gold'),()=>Game.tavernRest(),{size:9});
             UI.btn(150,my+34,200,28,'Hear the gossip',()=>{ mode='talk'; },{size:9});
             if(mode==='talk') UI.wrapText(NPCS.tavernkeep.rumor,150,my+76,400,11);
-            this.buySell(SHOP_STOCK.tavern,merch,my+150,6);
+            this.buySell(SHOP_STOCK.tavern,merch,my+128,6);
             break;
           }
           case 'temple': {
@@ -504,7 +518,7 @@ const UI = {
             else E.text('Come back with more experience — the yard teaches nothing to the unbloodied.',150,my+26,{size:9,ramp:0});
             // skill training
             const canRaise=pc.skillPoints>0;
-            E.text('Skill instruction — '+pc.skillPoints+' skill point'+(pc.skillPoints===1?'':'s')+(canRaise?':':' (train a level to earn more)'),150,my+60,{size:9,ramp:canRaise?1:11});
+            E.text(canRaise?('Skill instruction — '+pc.skillPoints+' point'+(pc.skillPoints===1?'':'s')+':'):'No skill points — train a level.',150,my+60,{size:9,ramp:canRaise?1:11});
             let yy=my+78; let n=0;
             for(const sk in pc.skills){ if(n++>7) break;
               const tierNext=Rules.skillTier(pc.skills[sk]+1);
@@ -536,16 +550,22 @@ const UI = {
             for(const id in SPELLS){ const s=SPELLS[id];
               if(!CLASSES[pc.cls].schools.includes(s.school)) continue;
               if(pc.spells.includes(id)) continue;
-              if(n>=5){ more++; continue; }
+              if(n>=4){ more++; continue; }
               n++;
               const price=Rules.buyPrice(Spellcraft.guildPrice(id),merch);
               const afford=P.gold>=price;
-              UI.btn(150,yy,330,24,s.name+' ('+SKILLS[s.school].name.replace(' Magic','')+' '+(s.req>=7?'Mastery':s.req>=4?'Expert':'Novice')+') — '+price+'g',()=>Game.buySpell(selPc,id),{size:9,ramp:afford?5:11});
+              const skNow=pc.skills[s.school]||0;
+              const castable=skNow>=s.req;
+              const tier=s.req>=7?'Mastery':s.req>=4?'Expert':'Novice';
+              UI.btn(150,yy,330,24,s.name+' ('+SKILLS[s.school].name.replace(' Magic','')+' '+tier+') — '+price+'g'+(castable?'':' — beyond skill'),()=>{
+                if(!castable&&self.confirmSpell!==id){ self.confirmSpell=id; UI.say(pc.name+' cannot cast this yet ('+SKILLS[s.school].name+' '+tier+' needed) — tap again to buy anyway.'); return; }
+                self.confirmSpell=null; Game.buySpell(selPc,id);
+              },{size:9,ramp:!afford?11:castable?5:12});
               yy+=28;
             }
             if(!n) E.text('No further mysteries for this pupil.',150,yy+4,{size:9,ramp:0}),yy+=20;
-            if(more) E.text('…'+more+' more once these are learned.',150,yy+2,{size:9,ramp:0});
-            this.buySell(SHOP_STOCK.guild,merch,332,6);
+            if(more) E.text('…'+more+' more once these are learned.',150,yy+2,{size:9,ramp:0}),yy+=16;
+            this.buySell(SHOP_STOCK.guild,merch,Math.max(yy+6,300),6);
             break;
           }
         }

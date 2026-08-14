@@ -116,7 +116,8 @@ const Engine = {
     const hazeOn=outdoor&&light>0.25;
     const hazeIdx=warmHour? palIdx(12,(5+light*5)|0) : palIdx(3,(9+light*4)|0);
     const hazeLvl=d=>d>28?3:d>19?2:d>12?1:0; // 0 none, 1=25%, 2=50%, 3=75% dither to sky
-    const HZT=[0,4,8,12]; // Bayer thresholds per haze level (ordered dither, no hatch artifacts)
+    const HZT=[0,4,8,12]; // thresholds per haze level
+    const hzHash=(x,y)=>(((x*73856093)^(y*19349663))>>>4)&15; // decorrelated dither, no mesh artifact
     const cellJit=(cx,cy)=>((cx*97+cy*57)&63); // per-cell texture offset kills tiling
     // sky / ceiling
     if(outdoor){
@@ -146,7 +147,7 @@ const Engine = {
         const row=y*w;
         for(let x=0;x<w;x++){
           const cx=fx|0, cy=fy|0;
-          if(hz&&BAYER4[((y&3)<<2)|(x&3)]<HZT[hz]){ fb[row+x]=hazeIdx; fx+=stepX; fy+=stepY; continue; }
+          if(hz&&hzHash(x,y)<HZT[hz]){ fb[row+x]=hazeIdx; fx+=stepX; fy+=stepY; continue; }
           let tex;
           if(cx>=0&&cy>=0&&cx<mw&&cy<mh){
             tex=isFloor? flTexs[floorIds[cy*mw+cx]] : ceilTex; // water frames swapped in Art.tick
@@ -202,13 +203,13 @@ const Engine = {
       let texX=(wallX*64)|0; if((side===0&&rdX>0)||(side===1&&rdY<0)) texX=63-texX;
       if(tex!==7&&tex!==8&&tex!==9) texX=(texX+cellJit(mapX,mapY))&63; // vary repeats (not doors/shopfronts)
       const wt=Art.walls[tex];
-      const sh=shadeAt(dist,side)-(glowAt(mapX,mapY)|0);
+      const sh=shadeAt(dist,side)-(glowAt(mapX,mapY)|0)+(outdoor&&warmHour?1:0);
       const hz=hazeOn?hazeLvl(dist):0;
       const step=64/lineH;
       let tpos=y0<0? -y0*step:0;
       const ys=Math.max(0,y0), ye=Math.min(h,y1);
       for(let y=ys;y<ye;y++){
-        if(hz&&BAYER4[((y&3)<<2)|(x&3)]<HZT[hz]){ fb[y*w+x]=hazeIdx; tpos+=step; continue; }
+        if(hz&&hzHash(x,y)<HZT[hz]){ fb[y*w+x]=hazeIdx; tpos+=step; continue; }
         const pi=wt[((tpos|0)&63)*64+texX]; tpos+=step;
         const s=(pi&15)-sh;
         fb[y*w+x]=(pi&240)|(s<0?0:s>15?15:s);
@@ -239,7 +240,7 @@ const Engine = {
         const texX=((sx-x0)*tw/sprW)|0;
         for(let sy=Math.max(0,y0);sy<Math.min(h,y1);sy++){
           if(ghost&&((sx+sy)&1)) continue; // dithered translucency
-          if(hz&&BAYER4[((sy&3)<<2)|(sx&3)]<HZT[hz]) continue;
+          if(hz&&hzHash(sx,sy)<HZT[hz]) continue;
           const pi=tex[(((sy-y0)*th/sprH)|0)*tw+texX];
           if(!pi) continue;
           const s=(pi&15)-sh;

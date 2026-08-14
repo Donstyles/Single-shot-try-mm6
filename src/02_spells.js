@@ -50,7 +50,7 @@ const Spellcraft = {
     const sk=pc.skills[s.school]||0;
     if(sk<s.req) return {ok:false,why:'Requires '+SKILLS[s.school].name+' '+(s.req>=7?'Master':s.req>=4?'Expert':'Novice')};
     if(pc.sp<s.sp) return {ok:false,why:'Not enough spell points'};
-    if(pc.cond==='dead'||pc.cond==='unconscious') return {ok:false,why:pc.name+' cannot act'};
+    if(pc.cond==='dead'||pc.cond==='unconscious'||pc.hp<=0) return {ok:false,why:pc.name+' cannot act'};
     return {ok:true};
   },
   // PURE: returns effect record. Caller deducts SP (amount echoed) and applies.

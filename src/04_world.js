@@ -163,6 +163,13 @@ const World = {
     for(const d of t.decor) map.decor.push({...d,x:d.x+TOWN_X,y:d.y+TOWN_Y});
     for(const s of t.shops) map.shops.push({x:s.x+TOWN_X,y:s.y+TOWN_Y,shop:s.shop});
     for(const k in t.doors){ const [x,y]=k.split(',').map(Number); map.doors[(x+TOWN_X)+','+(y+TOWN_Y)]=t.doors[k]; }
+    for(const sdoor of map.shops){ // hang each shop's trade sign
+      let bestSign=null,bd=9;
+      for(const d of map.decor){ if(d.kind!=='sign') continue;
+        const d2=(d.x-sdoor.x-0.5)**2+(d.y-sdoor.y-0.5)**2;
+        if(d2<bd){ bd=d2; bestSign=d; } }
+      if(bestSign) bestSign.kind='sign_'+sdoor.shop;
+    }
     // roads: east gate -> crypt; west gate -> goblin camp; south gate -> shrine
     const gateE={x:TOWN_X+37,y:TOWN_Y+7}, gateW={x:TOWN_X,y:TOWN_Y+7}, gateS={x:TOWN_X+21,y:TOWN_Y+15};
     this.road(map,gateE.x,gateE.y, 82,40); this.road(map,gateW.x,gateW.y, 13,36); this.road(map,gateS.x,gateS.y, 51,70);
@@ -170,7 +177,7 @@ const World = {
     // crypt entrance: rock outcrop with door portal
     for(let y=38;y<=42;y++)for(let x=83;x<=88;x++) cells[y*w+x]=3;
     cells[40*w+83]=0; floor[40*w+83]=1;
-    map.portals.push({x:84,y:40,kind:'enter',to:'dun1'}); cells[40*w+84]=0; floor[40*w+84]=3;
+    map.portals.push({x:84,y:40,kind:'enter',to:'dun1',tx:3.5,ty:2.5}); cells[40*w+84]=0; floor[40*w+84]=3;
     for(let y=39;y<=41;y++){cells[y*w+85]=3;} cells[40*w+85]=3;
     map.decor.push({kind:'cryptgate',x:84.5,y:39.6});
     map.decor.push({kind:'brazier',x:82.5,y:39.5},{kind:'brazier',x:82.5,y:41.5});
@@ -217,15 +224,16 @@ const World = {
     const near=[[24,28],[22,44],[40,52],[68,36],[52,26],[68,44],[36,22],[60,54]];
     for(const [x,y] of near) M.push(Monsters.make('goblin',x+0.5,y+0.5));
     for(let i=0;i<7;i++){ const x=r.int(14,80),y=r.int(50,86); if(this.openAt(map,x,y)) M.push(Monsters.make('wolf',x+0.5,y+0.5)); }
-    // goblin camp: 5 goblins + warrior + shaman (side quest: kill 5 camp goblins)
-    const camp=[[11,36],[13,37],[12,38],[15,36],[10,37]];
+    // goblin camp: 5 goblins + warrior + shaman, spread so singles can be pulled
+    const camp=[[9,38],[13,37],[11,40],[16,35],[8,35]];
     for(const [x,y] of camp){ const m=Monsters.make('goblin',x+0.5,y+0.5); m.group='gobcamp'; M.push(m); }
-    const gw=Monsters.make('goblin_war',13.5,35.5); gw.group='gobcamp'; M.push(gw);
+    const gw=Monsters.make('goblin_war',14.5,39.5); gw.group='gobcamp'; M.push(gw);
     const gs=Monsters.make('goblin_sham',11.5,35.0); gs.group='gobcamp'; M.push(gs);
-    // bandit camp: 3 bandits, 2 archers, captain (drops ledger)
-    M.push(Monsters.make('bandit',69.5,17.5),Monsters.make('bandit',71.5,18.0),Monsters.make('bandit',68.5,15.5));
-    M.push(Monsters.make('bandit_bow',72.5,15.5),Monsters.make('bandit_bow',67.5,13.5));
-    M.push(Monsters.make('bandit_boss',70.5,14.2));
+    // bandit camp: pickets out front, captain by the fire (leashed like all camps)
+    for(const [mid,x,y] of [['bandit',73.5,20.5],['bandit',67.5,18.5],['bandit',71.5,15.0],
+      ['bandit_bow',74.5,14.5],['bandit_bow',66.5,13.0],['bandit_boss',70.5,14.2]]){
+      const m=Monsters.make(mid,x,y); m.group='banditcamp'; M.push(m);
+    }
     // north forest direwolves
     M.push(Monsters.make('direwolf',30.5,12.5),Monsters.make('direwolf',44.5,10.5),Monsters.make('direwolf',56.5,14.5),Monsters.make('direwolf',38.5,16.5));
     // eastern ridge casters (far from town)
@@ -254,12 +262,13 @@ const World = {
       for(const c of p.chests) map.decor.push({kind:'brazier',x:c.x>2?c.x-1:c.x+1,y:c.y});
       this.maps[id]=map;
     };
+    // landings sit BESIDE the reciprocal stairs — landing on them would bounce the party straight back
     mk('dun1','The Crypt',DUN1_ROWS,{wallTex:5,floorId:4,chestTier:1,monsters:{a:'bat',p:'spider',k:'skeleton',z:'zombie'}},
-      {up:{map:'outdoor',x:82.5,y:40.5},down:{map:'dun2',x:2.5,y:1.8}});
+      {up:{map:'outdoor',x:82.5,y:40.5},down:{map:'dun2',x:2.5,y:2.6}});
     mk('dun2','The Catacombs',DUN2_ROWS,{wallTex:4,floorId:3,chestTier:2,monsters:{k:'skeleton',G:'skel_guard',z:'zombie',g:'ghost',n:'necromancer'}},
-      {up:{map:'dun1',x:27.2,y:13.5},down:{map:'dun3',x:2.5,y:1.8}});
+      {up:{map:'dun1',x:26.5,y:14.3},down:{map:'dun3',x:2.5,y:2.5}});
     mk('dun3','The Vault of Vintavia',DUN3_ROWS,{wallTex:6,floorId:5,chestTier:3,monsters:{G:'skel_guard',L:'lich'}},
-      {up:{map:'dun2',x:27.5,y:13.5},down:{map:'dun2',x:27.5,y:13.5}});
+      {up:{map:'dun2',x:27.5,y:14.5},down:{map:'dun2',x:27.5,y:14.5}});
   },
   spawnPoint(){ return {map:'outdoor',x:TOWN_X+4.5,y:TOWN_Y+7.5,ang:-Math.PI/2}; }, // main street, facing weapon smith
   templePoint(){ return {map:'outdoor',x:TOWN_X+4.5,y:TOWN_Y+9.2,ang:Math.PI/2}; },

@@ -41,13 +41,14 @@ const Game = {
     });
     // starter gear (equipped through the same path the player would use)
     const starter={knight:['shortsword','padded'],paladin:['mace','padded'],archer:['shortbow','padded'],
-      cleric:['club','padded'],sorcerer:['dagger'],druid:['club']};
+      cleric:['club','padded'],sorcerer:['quarterstaff','padded'],druid:['dagger','padded']};
     pcs.forEach(pc=>{
       for(const id of starter[pc.cls]||[]){ const it=Items.make(id);
         const d=ITEMS[id];
         if(Items.canEquip(pc,it)) pc.equip[d.slot==='weapon'?'weapon':d.slot]=it;
+        else this.giveItemTo(pc,it); // never silently vanish a starter item
       }
-      pc.items[0]=Items.make('bread'); pc.items[1]=Items.make('potion_heal');
+      pc.items[0]=pc.items[0]||Items.make('bread'); pc.items[1]=pc.items[1]||Items.make('potion_heal');
     });
     this.party={pcs,gold:200,bank:0,quests:{},buffs:{},perks:{}};
     this.clock={min:Clock.START};
@@ -108,7 +109,7 @@ const Game = {
       this.moveJoy={x:dx/42,y:dy/42}; };
     joy.addEventListener('touchstart',e=>{ Audio2.unlock(); e.preventDefault(); },{passive:false});
     joy.addEventListener('touchmove',e=>{ const t=e.touches[0], r=joy.getBoundingClientRect();
-      setJoy(t.clientX-(r.left+59),t.clientY-(r.top+59)); e.preventDefault(); },{passive:false});
+      setJoy(t.clientX-(r.left+61),t.clientY-(r.top+61)); e.preventDefault(); },{passive:false});
     joy.addEventListener('touchend',e=>{ setJoy(0,0); this.moveJoy={x:0,y:0}; e.preventDefault(); },{passive:false});
     // right: action buttons ≥ 44pt, above the home indicator
     const mkBtn=(label,off,cb)=>{ const b=mk({right:'calc(env(safe-area-inset-right, 0px) + 14px)',bottom:'calc(env(safe-area-inset-bottom, 0px) + '+off+'px)',width:'86px',height:'48px',borderRadius:'10px',lineHeight:'48px',fontSize:'15px'});
@@ -126,7 +127,7 @@ const Game = {
     const hint=document.createElement('div');
     Object.assign(hint.style,{position:'fixed',inset:'0',zIndex:20,display:'none',alignItems:'center',justifyContent:'center',
       background:'rgba(10,9,8,0.88)',color:'#d8c890',font:'20px Georgia',textAlign:'center'});
-    hint.innerHTML='Turn your phone sideways ⟳<br><span style="font-size:13px;color:#8a8478">Vintavia is played in landscape</span>';
+    hint.innerHTML='<div style="text-align:center">Turn your phone sideways ⟳<br><span style="font-size:13px;color:#8a8478">Vintavia is played in landscape</span></div>';
     document.body.appendChild(hint);
     const orient=()=>{ hint.style.display=(innerHeight>innerWidth)?'flex':'none'; };
     addEventListener('resize',orient); orient();
@@ -144,7 +145,7 @@ const Game = {
       case 'quests': UI.screen&&UI.screen.name==='quests'?UI.close():UI.open(UI.questScreen()); break;
       case 'map': UI.screen&&UI.screen.name==='map'?UI.close():UI.open(UI.mapScreen()); break;
       case 'rest': if(!UI.screen) this.tryRest(); break;
-      case 'menu': UI.screen?UI.close():UI.open(UI.menuScreen()); break;
+      case 'menu': if(UI.screen&&UI.screen.name==='victory') break; UI.screen?UI.close():UI.open(UI.menuScreen()); break;
       case 'nextPc': this.activePc=(this.activePc+1)%4; break;
       case 'forward': case 'back': case 'strafeL': case 'strafeR': case 'turnL': case 'turnR':
         this.userActed(); if(this.turnBased) this.tbBudget=Math.max(this.tbBudget,260); break;
@@ -237,7 +238,7 @@ const Game = {
       Audio2.setTrack(this.victoryShown&&track==='town'?'town':track);
     }
     // defeat check
-    if(this.party.pcs.every(pc=>pc.cond==='dead'||pc.cond==='unconscious')) this.defeat();
+    if(this.party.pcs.every(pc=>pc.cond==='dead'||pc.cond==='unconscious'||pc.hp<=0)) this.defeat();
   },
   inTown(){ return this.px>29&&this.px<67&&this.py>30&&this.py<46; },
   tryMove(dx,dy){
@@ -264,6 +265,11 @@ const Game = {
     const map=World.maps[this.mapId];
     for(const p of map.portals){
       if((this.px|0)===p.x&&(this.py|0)===p.y&&p.to){
+        // mid-combat, stairs wait for a deliberate Use — no accidental level flees
+        if(this.monstersNear(7).some(m=>m.state==='chase')){
+          if(performance.now()-(this._stairNote||0)>3000){ this._stairNote=performance.now(); UI.say('Press Use to take the stairs — the fight rages on!'); }
+          return;
+        }
         this.transition(p.to,p.tx,p.ty);
         return;
       }
@@ -271,6 +277,14 @@ const Game = {
   },
   transition(to,tx,ty){
     if(this._fading) return; this._fading=true;
+    // a portal without a destination must never strand the party in the void
+    if(typeof tx!=='number'||typeof ty!=='number'){
+      const m=World.maps[to];
+      outer: for(let y=1;y<m.h-1;y++) for(let x=1;x<m.w-1;x++){
+        if(!m.cells[y*m.w+x]&&m.floor[y*m.w+x]!==6&&!m.portals.some(p=>p.x===x&&p.y===y)){ tx=x+0.5; ty=y+0.5; break outer; }
+      }
+      if(typeof Debug!=='undefined') Debug.errors.push('portal to '+to+' missing tx/ty — landed at fallback '+tx+','+ty);
+    }
     Audio2.sfx('stairs');
     this.fade={t:0,dir:1,cb:()=>{
       this.mapId=to; this.px=tx; this.py=ty;
@@ -292,6 +306,7 @@ const Game = {
   },
 
   // ---------- monsters ----------
+  canAct(pc){ return (pc.cond==='ok'||pc.cond==='poisoned'||pc.cond==='diseased')&&pc.hp>0; },
   monstersNear(r){ const map=World.maps[this.mapId], out=[]; const r2=r*r;
     for(const m of map.monsters) if(m.hp>0&&dist2(m.x,m.y,this.px,this.py)<r2) out.push(m);
     return out; },
@@ -316,7 +331,8 @@ const Game = {
       const distP=Math.hypot(m.x-this.px,m.y-this.py);
       const calm=m.calmUntil>this.clock.min;
       if(m.state!=='chase'){
-        if(!this.graceUntilInput&&!calm&&distP<d.aggro&&this.lineOfSight(m.x,m.y,this.px,this.py)){
+        const aggroR=m.group? d.aggro*0.55 : d.aggro; // camps: singles pull, not the whole warband
+        if(!this.graceUntilInput&&!calm&&distP<aggroR&&this.lineOfSight(m.x,m.y,this.px,this.py)){
           m.state='chase';
           if(distP<7) Audio2.sfx('ambush');
         }
@@ -348,8 +364,10 @@ const Game = {
         this.moveMonster(m,Math.cos(ang)*d.spd*s,Math.sin(ang)*d.spd*s);
       }
       if(distP>d.aggro*2.2){ m.state='idle'; continue; }
-      // attack
-      if(d.ai==='melee'){
+      // attack — everyone fights when cornered; casters are not free kills in melee
+      if(d.ai!=='melee'&&distP<1.35&&m.cool<=0){
+        m.cool=2100-d.spd*180; m.attackT=performance.now(); this.monsterHitsParty(m,d,r);
+      } else if(d.ai==='melee'){
         if(distP<1.35&&m.cool<=0){ m.cool=1900-d.spd*180; m.attackT=performance.now(); this.monsterHitsParty(m,d,r); }
       } else if(m.cool<=0&&distP<d.aggro&&this.lineOfSight(m.x,m.y,this.px,this.py)){
         m.cool=d.spell.cd; m.attackT=performance.now();
@@ -377,7 +395,7 @@ const Game = {
     if(ok(m.x,m.y+dy)) m.y+=dy;
   },
   monsterHitsParty(m,d,r){
-    const targets=this.party.pcs.filter(pc=>pc.cond==='ok'||pc.cond==='poisoned'||pc.cond==='diseased');
+    const targets=this.party.pcs.filter(pc=>this.canAct(pc));
     if(!targets.length) return;
     const pc=targets[r.int(0,targets.length-1)];
     const eq=Object.values(pc.equip).map(Items.def);
@@ -397,7 +415,9 @@ const Game = {
     this.hurtFlash=performance.now();
     if(pc.hp<=0){
       pc.hp=0;
-      if(pc.cond!=='dead'){ pc.cond='unconscious'; Log.add(pc.name+' falls!',palIdx(14,12)); Audio2.sfx('die'); }
+      // sickness is not cured by a club to the head — only the healthy become 'unconscious'
+      if(pc.cond==='ok'){ pc.cond='unconscious'; }
+      if(pc.cond!=='dead'){ Log.add(pc.name+' falls!',palIdx(14,12)); Audio2.sfx('die'); }
     }
   },
 
@@ -413,7 +433,7 @@ const Game = {
       else if(p.from==='mon'){
         if(dist2(p.x,p.y,this.px,this.py)<0.45*0.45){
           dead=true;
-          const targets=this.party.pcs.filter(pc=>pc.cond==='ok'||pc.cond==='poisoned'||pc.cond==='diseased');
+          const targets=this.party.pcs.filter(pc=>Game.canAct(pc));
           if(targets.length){ const pc=targets[r.int(0,targets.length-1)];
             const eq=Object.values(pc.equip).map(Items.def);
             if(Rules.monsterHit(r,p.atk||5,Rules.effectiveAC(pc,eq,this.party.buffs))) this.damagePc(pc,p.dmg,'A bolt');
@@ -440,6 +460,17 @@ const Game = {
     if(vsUndead&&d.und) dmg=Math.round(dmg*vsUndead);
     m.hp-=dmg; m.hurtT=performance.now();
     Audio2.sfx('hit');
+    // the Lich calls its guards from the walls at half strength — once
+    if(m.mid==='lich'&&!m.summoned&&m.hp>0&&m.hp<d.hp/2){
+      m.summoned=true;
+      const map=World.maps[this.mapId];
+      for(const [dx,dy] of [[-1.5,-1.2],[1.5,1.2]]){
+        const sx=m.x+dx, sy=m.y+dy;
+        if(!map.cells[(sy|0)*map.w+(sx|0)]){ const sk=Monsters.make('skel_guard',sx,sy); sk.state='chase'; map.monsters.push(sk); }
+      }
+      Log.add('“RISE!” — bone claws through the marble!',palIdx(6,13));
+      Audio2.sfx('spell_dark');
+    }
     if(m.hp<=0) this.killMonster(m);
     else if(m.state!=='chase') m.state='chase';
   },
@@ -454,7 +485,7 @@ const Game = {
     const extra=[];
     if(m.mid==='bandit_boss') extra.push(Items.make('q_ledger'));
     if(m.mid==='necromancer') extra.push(Items.make('q_sigil'));
-    if(m.mid==='direwolf'&&this.party.quests.side_wolves&&this.party.quests.side_wolves.state==='active') extra.push(Items.make('q_fang'));
+    if(m.mid==='direwolf') extra.push(Items.make('q_fang')); // trophies exist whether or not anyone asked
     this.corpses.push({mapId:this.mapId,mid:m.mid,x:m.x,y:m.y,gold:loot.gold,items:loot.item?[loot.item,...extra]:extra,looted:false});
     // xp share
     const alive=this.party.pcs.filter(pc=>pc.cond!=='dead');
@@ -498,7 +529,7 @@ const Game = {
     const r=RNG.get('combat');
     let acted=false;
     for(const pc of this.party.pcs){
-      if(pc.cond!=='ok'&&pc.cond!=='poisoned'&&pc.cond!=='diseased') continue;
+      if(!this.canAct(pc)) continue;
       if(pc.recovery>0) continue;
       const w=pc.equip.weapon?ITEMS[pc.equip.weapon.id]:null;
       pc.recovery=Rules.effectiveRecovery(pc,w,this.party.buffs);
@@ -582,14 +613,19 @@ const Game = {
       d.open=!d.open; Audio2.sfx('door'); return;
     }
     for(const p of map.portals){ if(fc.x===p.x&&fc.y===p.y&&p.to){ this.transition(p.to,p.tx,p.ty); return; } }
-    // corpse loot (nearest within 1.8)
-    let corpse=null,cd=1.8*1.8;
+    // standing ON a portal cell (walk-on was deferred mid-combat): Use takes the stairs
+    for(const p of map.portals){ if((this.px|0)===p.x&&(this.py|0)===p.y&&p.to){ this.transition(p.to,p.tx,p.ty); return; } }
+    // nearest wins among corpses / chests / npcs — no category may shadow another
+    let best=null,bd=Infinity;
     for(const c of this.corpses){ if(c.mapId!==this.mapId||c.looted) continue;
-      const d2=dist2(c.x,c.y,this.px,this.py); if(d2<cd){ corpse=c; cd=d2; } }
-    if(corpse){ this.lootCorpse(corpse); return; }
-    // chest
-    for(const ch of map.chests){
-      if(dist2(ch.x,ch.y,this.px,this.py)<2.1*2.1){
+      const d2=dist2(c.x,c.y,this.px,this.py); if(d2<1.8*1.8&&d2<bd){ bd=d2; best={kind:'corpse',c}; } }
+    for(const ch of map.chests){ const d2=dist2(ch.x,ch.y,this.px,this.py);
+      if(d2<2.1*2.1&&d2<bd){ bd=d2; best={kind:'chest',ch}; } }
+    for(const n of map.npcs){ const d2=dist2(n.x,n.y,this.px,this.py);
+      if(d2<2.2*2.2&&d2<bd){ bd=d2; best={kind:'npc',n}; } }
+    if(best&&best.kind==='corpse'){ this.lootCorpse(best.c); return; }
+    if(best&&best.kind==='npc'){ UI.open(UI.dialogScreen(best.n.id)); return; }
+    if(best&&best.kind==='chest'){ const ch=best.ch; {
         const key=this.mapId+':'+ch.id;
         if(this.flags.chests[key]){ UI.say('Empty.'); return; }
         this.flags.chests[key]=1;
@@ -623,10 +659,6 @@ const Game = {
         return;
       }
     }
-    // npc (only when not facing a door)
-    for(const n of map.npcs){
-      if(dist2(n.x,n.y,this.px,this.py)<2.2*2.2){ UI.open(UI.dialogScreen(n.id)); return; }
-    }
     // shop door by adjacency (walked up beside it)
     for(const s of map.shops){
       if(Math.abs(s.x+0.5-this.px)<1.6&&Math.abs(s.y+0.5-this.py)<1.6){
@@ -644,6 +676,7 @@ const Game = {
     Log.add(msg+'.',palIdx(5,11));
     this.onQuestItemsChanged();
   },
+  giveItemTo(pc,it){ const idx=pc.items.findIndex(x=>!x); if(idx>=0){ pc.items[idx]=it; return true; } return false; },
   giveItem(it){
     for(const pc of this.party.pcs){
       const idx=pc.items.findIndex(x=>!x);
@@ -825,6 +858,19 @@ const Game = {
       }
       return;
     }
+    if(!out&&r.chance(0.3)){ // something heard you settle in
+      this.advanceMinutes(180);
+      Audio2.sfx('ambush');
+      Log.add('Bone scrapes stone — they found your camp!',palIdx(14,12));
+      const map2=World.maps[this.mapId];
+      const pool={dun1:['skeleton','spider'],dun2:['skeleton','ghost'],dun3:['skel_guard']}[this.mapId]||['skeleton'];
+      for(let i=0;i<2;i++){
+        const a=r.next()*Math.PI*2;
+        const sx=this.px+Math.cos(a)*2.5, sy=this.py+Math.sin(a)*2.5;
+        if(!map2.cells[(sy|0)*map2.w+(sx|0)]){ const m=Monsters.make(r.pick(pool),sx,sy); m.state='chase'; map2.monsters.push(m); }
+      }
+      return;
+    }
     this.advanceMinutes(Rules.REST_MINUTES);
     for(const pc of this.party.pcs){
       const res=Rules.restResult(pc);
@@ -861,6 +907,7 @@ const Game = {
       const allDead=this.party.pcs.every(pc=>pc.cond==='dead');
       for(const pc of this.party.pcs){
         if(pc.cond==='unconscious'||allDead){ pc.cond='ok'; pc.hp=1; }
+        else if(pc.hp<=0&&pc.cond!=='dead') pc.hp=1; // sick and battered — alive, still sick
       }
       const tithe=Math.floor(this.party.gold*0.1);
       this.party.gold-=tithe;
@@ -884,7 +931,11 @@ const Game = {
       for(let i=0;i<a.length;i+=6){ let v=0; for(let j=0;j<6;j++) v|=(a[i+j]?1:0)<<j; s+=String.fromCharCode(48+v); }
       explored[id]=s;
     }
-    return { v:SAVE_VERSION, seed:RNG.worldSeed, clock:this.clock.min,
+    const doorsState={};
+    for(const id in World.maps){ const m=World.maps[id]; const dd={};
+      for(const k in m.doors) if(m.doors[k].open) dd[k]=1;
+      if(Object.keys(dd).length) doorsState[id]=dd; }
+    return { v:SAVE_VERSION, ts:Date.now(), doorsState, seed:RNG.worldSeed, clock:this.clock.min,
       party:this.party, mapId:this.mapId, px:this.px, py:this.py, ang:this.ang,
       rng:RNG.serialize(), maps:mapsState, flags:this.flags,
       corpses:this.corpses.filter(c=>!c.looted).map(c=>({mapId:c.mapId,mid:c.mid,x:+c.x.toFixed(2),y:+c.y.toFixed(2),gold:c.gold,items:c.items})),
@@ -899,6 +950,13 @@ const Game = {
   },
   autosave(){ if(this.state==='play') this.save('auto'); },
   hasSave(slot){ try{ return !!localStorage.getItem('vintavia_'+slot); }catch(e){ return false; } },
+  newestSlot(){ // Continue must never time-travel backwards
+    let best=null,bt=-1;
+    for(const slot of ['manual','auto']){
+      try{ const d=JSON.parse(localStorage.getItem('vintavia_'+slot)); if(d&&(d.ts||0)>bt){ bt=d.ts||0; best=slot; } }catch(e){}
+    }
+    return best;
+  },
   saveMeta(slot){
     try{
       const d=JSON.parse(localStorage.getItem('vintavia_'+slot)); if(!d) return null;
@@ -920,6 +978,8 @@ const Game = {
     for(const id in d.maps){ const m=World.maps[id]; if(!m) continue;
       m.monsters=d.maps[id].monsters.map(mo=>Object.assign(Monsters.make(mo.mid,mo.x,mo.y),mo));
     }
+    if(d.doorsState) for(const id in d.doorsState){ const m=World.maps[id]; if(!m) continue;
+      for(const k in d.doorsState[id]) if(m.doors[k]){ m.doors[k].open=true; m.doors[k].t=1; } }
     this.corpses=(d.corpses||[]).map(c=>({...c,looted:false}));
     this.explored={};
     for(const id in d.explored){ const m=World.maps[id]; if(!m) continue;
@@ -991,7 +1051,7 @@ const Game = {
       if(dc.kind==='brazier'&&flick) key='decor_brazier_b';
       if(dc.kind==='tree'&&((dc.x*7+dc.y*13)|0)%2) key='decor_tree2';
       const sp=Art.sprites[key]; if(!sp) continue;
-      const dscale=dc.kind.startsWith('tree')?1.6:dc.kind==='cryptgate'?1.5:0.9;
+      const dscale=dc.kind.startsWith('tree')?1.6:dc.kind==='cryptgate'?1.15:0.9;
       ents.push({x:dc.x,y:dc.y,tex:sp.frames.idle,tw:sp.tw,th:sp.th,scale:dscale});
     }
     for(const ch of map.chests){

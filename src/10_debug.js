@@ -69,7 +69,7 @@ const Debug = {
     const pre=document.createElement('pre'); pre.style.margin='0'; pre.textContent=this.report();
     const row=document.createElement('div');
     const mkb=(label,cb)=>{ const b=document.createElement('button');
-      Object.assign(b.style,{margin:'6px 6px 0 0',padding:'8px 12px',font:'12px monospace',background:'#2a3a2a',color:'#c8e8c8',border:'1px solid #4a6a4a'});
+      Object.assign(b.style,{margin:'6px 6px 0 0',padding:'14px 18px',font:'13px monospace',background:'#2a3a2a',color:'#c8e8c8',border:'1px solid #4a6a4a'});
       b.textContent=label; b.addEventListener('click',cb); b.addEventListener('touchstart',e=>{cb();e.preventDefault();},{passive:false}); row.appendChild(b); };
     mkb('COPY REPORT',()=>{ pre.textContent=this.report();
       if(navigator.clipboard) navigator.clipboard.writeText(this.report()).then(()=>{ pre.textContent='(copied to clipboard)\n\n'+this.report(); });

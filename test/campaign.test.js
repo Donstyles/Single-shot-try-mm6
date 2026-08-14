@@ -83,9 +83,13 @@ function ok(c,msg){ if(c) pass++; else { fail++; console.error('FAIL: '+msg); } 
   ok(s.party.quests.side_wolves.state==='done','wolf cull complete: '+JSON.stringify(s.party.quests.side_wolves));
   await page.evaluate(()=>Game.turnInQuest('side_wolves'));
 
-  // ---- main2: censer from the crypt ----
+  // ---- main2: censer from the crypt (enter through the REAL door — the softlock scar) ----
   await page.evaluate(()=>Game.acceptQuest('main2'));
-  await page.evaluate(()=>{ __game.gotoMap('dun1',27.5,1.5); __game.teleport(27.5,2.5,0); });
+  await page.evaluate(()=>{ __game.gotoMap('outdoor',83.4,40.5); __game.face(84.5,40.5); __game.press('interact'); });
+  await page.waitForFunction(()=>Game.mapId==='dun1',null,{timeout:8000});
+  const landing=await page.evaluate(()=>({x:Game.px,y:Game.py}));
+  ok(typeof landing.x==='number'&&!isNaN(landing.x)&&typeof landing.y==='number'&&!isNaN(landing.y),'crypt door lands at real coordinates ('+landing.x+','+landing.y+')');
+  await page.evaluate(()=>{ __game.teleport(27.5,2.5,0); });
   await page.evaluate(()=>{ const ch=World.maps.dun1.chests.find(c=>c.special==='q_censer'); __game.teleport(ch.x-1,ch.y+0.2,0); __game.press('interact'); });
   s=await S();
   ok(s.party.pcs.some(p=>p.items.includes('q_censer')),'censer looted from crypt chest');
