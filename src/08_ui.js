@@ -220,7 +220,7 @@ const UI = {
         const E=Engine, P=Game.party, self=this;
         const pc=P.pcs[pi];
         UI.chrome(pc.name+' — '+CLASSES[pc.cls].name+'  L'+pc.level);
-        for(let i=0;i<4;i++) UI.btn(60+i*90,52,84,22,P.pcs[i].name,()=>{ pi=i; selItem=-1; },{size:9,down:pi===i});
+        for(let i=0;i<4;i++) UI.btn(150+i*90,52,84,22,P.pcs[i].name,()=>{ pi=i; selItem=-1; },{size:9,down:pi===i});
         // paperdoll + equip
         E.blit(Art.paperdolls.male,92,150,48,92);
         E.frameRect(46,90,96,154,palIdx(1,3));
@@ -269,11 +269,17 @@ const UI = {
             : d.stat? ('+'+d.statPlus+' '+d.stat)
             : d.use==='heal'? 'Restores health' : d.use==='mana'?'Restores spell points' : d.use==='cure'?'Cures poison and disease' : d.slot==='quest'?'Quest item':'';
           E.text(desc,gx,gy+8*cs+22,{size:9,ramp:0});
-          if(d.slot!=='quest'){
-            if(d.slot==='use') UI.btn(gx,gy+8*cs+36,70,24,'Use',()=>{ Game.useItem(pi,selItem); selItem=-1; });
-            else if(Items.canEquip(pc,it)) UI.btn(gx,gy+8*cs+36,70,24,'Equip',()=>{ Game.equipItem(pi,selItem); selItem=-1; });
-            else E.text('(cannot equip — skill untrained)',gx,gy+8*cs+40,{size:9,ramp:14});
-            UI.btn(gx+80,gy+8*cs+36,70,24,'Drop',()=>{ pc.items[selItem]=null; selItem=-1; });
+          {
+            const by2=gy+8*cs+36;
+            if(d.slot!=='quest'&&d.slot==='use') UI.btn(gx,by2,64,24,'Use',()=>{ Game.useItem(pi,selItem); selItem=-1; });
+            else if(d.slot!=='quest'&&Items.canEquip(pc,it)) UI.btn(gx,by2,64,24,'Equip',()=>{ Game.equipItem(pi,selItem); selItem=-1; });
+            else if(d.slot!=='quest') E.text('(skill untrained)',gx,by2-14,{size:9,ramp:14});
+            const nextPc=(pi+1)%4;
+            UI.btn(gx+68,by2,88,24,'Give ► '+P.pcs[nextPc].name.slice(0,6),()=>{
+              if(Game.giveItemTo(P.pcs[nextPc],it)){ pc.items[selItem]=null; selItem=-1; Audio2.sfx('pickup'); UI.say('Handed over.'); }
+              else UI.say(P.pcs[nextPc].name+'’s pack is full.');
+            },{size:9});
+            if(d.slot!=='quest') UI.btn(gx+160,by2,56,24,'Drop',()=>{ pc.items[selItem]=null; selItem=-1; });
           }
         }
       }
@@ -288,7 +294,7 @@ const UI = {
       draw(){
         const E=Engine,P=Game.party,pc=P.pcs[pi],self=this;
         UI.chrome(pc.name+' — Spellbook');
-        for(let i=0;i<4;i++) UI.btn(60+i*90,52,84,22,P.pcs[i].name,()=>{ pi=i; school=null; },{size:9,down:pi===i});
+        for(let i=0;i<4;i++) UI.btn(150+i*90,52,84,22,P.pcs[i].name,()=>{ pi=i; school=null; },{size:9,down:pi===i});
         const schools=CLASSES[pc.cls].schools;
         if(!schools.length){
           E.textC(pc.name+' follows the way of steel — no spellbook.',SCREEN_W/2,170,{size:11,ramp:1});

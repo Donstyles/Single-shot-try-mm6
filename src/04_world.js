@@ -306,7 +306,7 @@ const QUESTS = {
     desc:'Direwolves out of the north forest have taken two horses this month. Bring me three fangs and I will owe you coin and a favor.',
     done:'Three fangs — good hunting. Here is your coin.', gold:250, xp:700},
   side_goblins:{name:'Quiet Roads', giver:'tavernkeep', kind:'killgroup', group:'gobcamp', count:5,
-    desc:'Goblins from the western dens rob every cart that comes down the road. Thin them out — five heads — and the Gilded Griffin will never charge your party for a bed again.',
+    desc:'Goblins from the western camp rob every cart that comes down the road. Five heads from that camp — strays elsewhere don’t count, they answer to no one. Do it and the Gilded Griffin never charges your party for a bed again.',
     done:'Five, you say? Ha! The roads breathe easier. Your beds are free, friends — forever.', gold:150, xp:500, perk:'freerest'},
 };
 const Quests = {

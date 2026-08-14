@@ -839,7 +839,7 @@ const QUESTS = {
     desc:'Direwolves out of the north forest have taken two horses this month. Bring me three fangs and I will owe you coin and a favor.',
     done:'Three fangs — good hunting. Here is your coin.', gold:250, xp:700},
   side_goblins:{name:'Quiet Roads', giver:'tavernkeep', kind:'killgroup', group:'gobcamp', count:5,
-    desc:'Goblins from the western dens rob every cart that comes down the road. Thin them out — five heads — and the Gilded Griffin will never charge your party for a bed again.',
+    desc:'Goblins from the western camp rob every cart that comes down the road. Five heads from that camp — strays elsewhere don’t count, they answer to no one. Do it and the Gilded Griffin never charges your party for a bed again.',
     done:'Five, you say? Ha! The roads breathe easier. Your beds are free, friends — forever.', gold:150, xp:500, perk:'freerest'},
 };
 const Quests = {
@@ -2647,7 +2647,7 @@ const UI = {
         const E=Engine, P=Game.party, self=this;
         const pc=P.pcs[pi];
         UI.chrome(pc.name+' — '+CLASSES[pc.cls].name+'  L'+pc.level);
-        for(let i=0;i<4;i++) UI.btn(60+i*90,52,84,22,P.pcs[i].name,()=>{ pi=i; selItem=-1; },{size:9,down:pi===i});
+        for(let i=0;i<4;i++) UI.btn(150+i*90,52,84,22,P.pcs[i].name,()=>{ pi=i; selItem=-1; },{size:9,down:pi===i});
         // paperdoll + equip
         E.blit(Art.paperdolls.male,92,150,48,92);
         E.frameRect(46,90,96,154,palIdx(1,3));
@@ -2696,11 +2696,17 @@ const UI = {
             : d.stat? ('+'+d.statPlus+' '+d.stat)
             : d.use==='heal'? 'Restores health' : d.use==='mana'?'Restores spell points' : d.use==='cure'?'Cures poison and disease' : d.slot==='quest'?'Quest item':'';
           E.text(desc,gx,gy+8*cs+22,{size:9,ramp:0});
-          if(d.slot!=='quest'){
-            if(d.slot==='use') UI.btn(gx,gy+8*cs+36,70,24,'Use',()=>{ Game.useItem(pi,selItem); selItem=-1; });
-            else if(Items.canEquip(pc,it)) UI.btn(gx,gy+8*cs+36,70,24,'Equip',()=>{ Game.equipItem(pi,selItem); selItem=-1; });
-            else E.text('(cannot equip — skill untrained)',gx,gy+8*cs+40,{size:9,ramp:14});
-            UI.btn(gx+80,gy+8*cs+36,70,24,'Drop',()=>{ pc.items[selItem]=null; selItem=-1; });
+          {
+            const by2=gy+8*cs+36;
+            if(d.slot!=='quest'&&d.slot==='use') UI.btn(gx,by2,64,24,'Use',()=>{ Game.useItem(pi,selItem); selItem=-1; });
+            else if(d.slot!=='quest'&&Items.canEquip(pc,it)) UI.btn(gx,by2,64,24,'Equip',()=>{ Game.equipItem(pi,selItem); selItem=-1; });
+            else if(d.slot!=='quest') E.text('(skill untrained)',gx,by2-14,{size:9,ramp:14});
+            const nextPc=(pi+1)%4;
+            UI.btn(gx+68,by2,88,24,'Give ► '+P.pcs[nextPc].name.slice(0,6),()=>{
+              if(Game.giveItemTo(P.pcs[nextPc],it)){ pc.items[selItem]=null; selItem=-1; Audio2.sfx('pickup'); UI.say('Handed over.'); }
+              else UI.say(P.pcs[nextPc].name+'’s pack is full.');
+            },{size:9});
+            if(d.slot!=='quest') UI.btn(gx+160,by2,56,24,'Drop',()=>{ pc.items[selItem]=null; selItem=-1; });
           }
         }
       }
@@ -2715,7 +2721,7 @@ const UI = {
       draw(){
         const E=Engine,P=Game.party,pc=P.pcs[pi],self=this;
         UI.chrome(pc.name+' — Spellbook');
-        for(let i=0;i<4;i++) UI.btn(60+i*90,52,84,22,P.pcs[i].name,()=>{ pi=i; school=null; },{size:9,down:pi===i});
+        for(let i=0;i<4;i++) UI.btn(150+i*90,52,84,22,P.pcs[i].name,()=>{ pi=i; school=null; },{size:9,down:pi===i});
         const schools=CLASSES[pc.cls].schools;
         if(!schools.length){
           E.textC(pc.name+' follows the way of steel — no spellbook.',SCREEN_W/2,170,{size:11,ramp:1});
@@ -3463,10 +3469,10 @@ const Game = {
       }
       if(distP>d.aggro*2.2){ m.state='idle'; continue; }
       // attack — everyone fights when cornered; casters are not free kills in melee
-      if(d.ai!=='melee'&&distP<1.35&&m.cool<=0){
+      if(d.ai!=='melee'&&distP<1.35&&m.cool<=0&&this.lineOfSight(m.x,m.y,this.px,this.py)){
         m.cool=2100-d.spd*180; m.attackT=performance.now(); this.monsterHitsParty(m,d,r);
       } else if(d.ai==='melee'){
-        if(distP<1.35&&m.cool<=0){ m.cool=1900-d.spd*180; m.attackT=performance.now(); this.monsterHitsParty(m,d,r); }
+        if(distP<1.35&&m.cool<=0&&this.lineOfSight(m.x,m.y,this.px,this.py)){ m.cool=1900-d.spd*180; m.attackT=performance.now(); this.monsterHitsParty(m,d,r); }
       } else if(m.cool<=0&&distP<d.aggro&&this.lineOfSight(m.x,m.y,this.px,this.py)){
         m.cool=d.spell.cd; m.attackT=performance.now();
         const pa=angTo(m.x,m.y,this.px,this.py);
@@ -3501,8 +3507,8 @@ const Game = {
     if(Rules.monsterHit(r,d.atk,ac)){
       const dmg=Rules.damageRoll(r,{n:d.dn,d:d.dd,plus:d.dp});
       this.damagePc(pc,dmg,d.name);
-      if(d.poison&&r.chance(d.poison)&&pc.cond==='ok'){ pc.cond='poisoned'; Log.add(pc.name+' is poisoned!',palIdx(13,10)); }
-      if(d.disease&&r.chance(d.disease)&&pc.cond==='ok'){ pc.cond='diseased'; Log.add(pc.name+' catches grave-rot!',palIdx(9,9)); }
+      if(d.poison&&r.chance(d.poison)&&pc.cond==='ok'){ pc.cond='poisoned'; Log.add(pc.name+' is poisoned! (it saps but cannot kill — cure at the temple or with antidote)',palIdx(13,10)); }
+      if(d.disease&&r.chance(d.disease)&&pc.cond==='ok'){ pc.cond='diseased'; Log.add(pc.name+' catches grave-rot! (rest heals half until cured)',palIdx(9,9)); }
     } else Audio2.sfx('miss');
   },
   damagePc(pc,dmg,srcName){
@@ -3657,7 +3663,10 @@ const Game = {
         if(!ranged) Log.add(pc.name+' hits the '+md.name+' for '+dmg+'.');
       } else { Audio2.sfx('miss'); Log.add(pc.name+' misses.'); }
     }
-    if(this.turnBased&&acted) this.tbBudget=Math.max(this.tbBudget,620);
+    if(this.turnBased){ // one order = one full round: run until the slowest blade is ready again
+      const maxRec=Math.max(620,...this.party.pcs.filter(pc=>this.canAct(pc)).map(pc=>pc.recovery||0));
+      this.tbBudget=Math.max(this.tbBudget,Math.min(2200,maxRec+80));
+    }
     if(!t&&acted) UI.say('No foe in reach — face your enemy.');
   },
   quickCast(){
@@ -3793,8 +3802,9 @@ const Game = {
     this.onQuestItemsChanged();
   },
   giveItemTo(pc,it){ const idx=pc.items.findIndex(x=>!x); if(idx>=0){ pc.items[idx]=it; return true; } return false; },
-  giveItem(it){
-    for(const pc of this.party.pcs){
+  giveItem(it){ // active hero's pack first — the shop tab you selected is who buys
+    const order=[this.party.pcs[this.activePc],...this.party.pcs.filter((_,i)=>i!==this.activePc)];
+    for(const pc of order){
       const idx=pc.items.findIndex(x=>!x);
       if(idx>=0){ pc.items[idx]=it; return true; }
     }

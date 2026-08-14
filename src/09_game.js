@@ -367,10 +367,10 @@ const Game = {
       }
       if(distP>d.aggro*2.2){ m.state='idle'; continue; }
       // attack — everyone fights when cornered; casters are not free kills in melee
-      if(d.ai!=='melee'&&distP<1.35&&m.cool<=0){
+      if(d.ai!=='melee'&&distP<1.35&&m.cool<=0&&this.lineOfSight(m.x,m.y,this.px,this.py)){
         m.cool=2100-d.spd*180; m.attackT=performance.now(); this.monsterHitsParty(m,d,r);
       } else if(d.ai==='melee'){
-        if(distP<1.35&&m.cool<=0){ m.cool=1900-d.spd*180; m.attackT=performance.now(); this.monsterHitsParty(m,d,r); }
+        if(distP<1.35&&m.cool<=0&&this.lineOfSight(m.x,m.y,this.px,this.py)){ m.cool=1900-d.spd*180; m.attackT=performance.now(); this.monsterHitsParty(m,d,r); }
       } else if(m.cool<=0&&distP<d.aggro&&this.lineOfSight(m.x,m.y,this.px,this.py)){
         m.cool=d.spell.cd; m.attackT=performance.now();
         const pa=angTo(m.x,m.y,this.px,this.py);
@@ -405,8 +405,8 @@ const Game = {
     if(Rules.monsterHit(r,d.atk,ac)){
       const dmg=Rules.damageRoll(r,{n:d.dn,d:d.dd,plus:d.dp});
       this.damagePc(pc,dmg,d.name);
-      if(d.poison&&r.chance(d.poison)&&pc.cond==='ok'){ pc.cond='poisoned'; Log.add(pc.name+' is poisoned!',palIdx(13,10)); }
-      if(d.disease&&r.chance(d.disease)&&pc.cond==='ok'){ pc.cond='diseased'; Log.add(pc.name+' catches grave-rot!',palIdx(9,9)); }
+      if(d.poison&&r.chance(d.poison)&&pc.cond==='ok'){ pc.cond='poisoned'; Log.add(pc.name+' is poisoned! (it saps but cannot kill — cure at the temple or with antidote)',palIdx(13,10)); }
+      if(d.disease&&r.chance(d.disease)&&pc.cond==='ok'){ pc.cond='diseased'; Log.add(pc.name+' catches grave-rot! (rest heals half until cured)',palIdx(9,9)); }
     } else Audio2.sfx('miss');
   },
   damagePc(pc,dmg,srcName){
@@ -561,7 +561,10 @@ const Game = {
         if(!ranged) Log.add(pc.name+' hits the '+md.name+' for '+dmg+'.');
       } else { Audio2.sfx('miss'); Log.add(pc.name+' misses.'); }
     }
-    if(this.turnBased&&acted) this.tbBudget=Math.max(this.tbBudget,620);
+    if(this.turnBased){ // one order = one full round: run until the slowest blade is ready again
+      const maxRec=Math.max(620,...this.party.pcs.filter(pc=>this.canAct(pc)).map(pc=>pc.recovery||0));
+      this.tbBudget=Math.max(this.tbBudget,Math.min(2200,maxRec+80));
+    }
     if(!t&&acted) UI.say('No foe in reach — face your enemy.');
   },
   quickCast(){
@@ -697,8 +700,9 @@ const Game = {
     this.onQuestItemsChanged();
   },
   giveItemTo(pc,it){ const idx=pc.items.findIndex(x=>!x); if(idx>=0){ pc.items[idx]=it; return true; } return false; },
-  giveItem(it){
-    for(const pc of this.party.pcs){
+  giveItem(it){ // active hero's pack first — the shop tab you selected is who buys
+    const order=[this.party.pcs[this.activePc],...this.party.pcs.filter((_,i)=>i!==this.activePc)];
+    for(const pc of order){
       const idx=pc.items.findIndex(x=>!x);
       if(idx>=0){ pc.items[idx]=it; return true; }
     }
