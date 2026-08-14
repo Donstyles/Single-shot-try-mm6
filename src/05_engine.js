@@ -115,9 +115,8 @@ const Engine = {
     const warmHour=(hh>=4.8&&hh<7.5)||(hh>=18.5&&hh<21);
     const hazeOn=outdoor&&light>0.25;
     const hazeIdx=warmHour? palIdx(12,(5+light*5)|0) : palIdx(3,(9+light*4)|0);
-    const hazeLvl=d=>d>28?3:d>19?2:d>12?1:0; // 0 none, 1=25%, 2=50%, 3=75% dither to sky
-    const HZT=[0,4,8,12]; // thresholds per haze level
-    const hzHash=(x,y)=>(((x*73856093)^(y*19349663))>>>4)&15; // decorrelated dither, no mesh artifact
+    const hazeLvl=d=>d>30?3:d>21?2:d>13?1:0; // 0 none, 1 pale, 2 paler+speckle, 3 solid sky
+    const hzHash=(x,y)=>(((x*73856093)^(y*19349663))>>>4)&15;
     const cellJit=(cx,cy)=>((cx*97+cy*57)&63); // per-cell texture offset kills tiling
     // sky / ceiling
     if(outdoor){
@@ -147,7 +146,8 @@ const Engine = {
         const row=y*w;
         for(let x=0;x<w;x++){
           const cx=fx|0, cy=fy|0;
-          if(hz&&hzHash(x,y)<HZT[hz]){ fb[row+x]=hazeIdx; fx+=stepX; fy+=stepY; continue; }
+          if(hz===3){ fb[row+x]=hazeIdx; fx+=stepX; fy+=stepY; continue; }
+          if(hz===2&&hzHash(x,y)<6){ fb[row+x]=hazeIdx; fx+=stepX; fy+=stepY; continue; }
           let tex;
           if(cx>=0&&cy>=0&&cx<mw&&cy<mh){
             tex=isFloor? flTexs[floorIds[cy*mw+cx]] : ceilTex; // water frames swapped in Art.tick
@@ -155,7 +155,7 @@ const Engine = {
           const jit=cellJit(cx,cy);
           const tx=((((fx-cx)*64)|0)+jit)&63, ty=((((fy-cy)*64)|0)+(jit>>1))&63;
           let pi=tex[ty*64+tx];
-          let s=(pi&15)-sh;
+          let s=(pi&15)-sh+(hz?hz*2:0); // fog lifts far ground toward pale
           if(lm2&&cx>=0&&cy>=0&&cx<mw&&cy<mh) s+=lm2[cy*mw+cx];
           fb[row+x]=(pi&240)|(s<0?0:s>15?15:s);
           fx+=stepX; fy+=stepY;
@@ -209,9 +209,9 @@ const Engine = {
       let tpos=y0<0? -y0*step:0;
       const ys=Math.max(0,y0), ye=Math.min(h,y1);
       for(let y=ys;y<ye;y++){
-        if(hz&&hzHash(x,y)<HZT[hz]){ fb[y*w+x]=hazeIdx; tpos+=step; continue; }
+        if(hz===3||(hz===2&&hzHash(x,y)<6)){ fb[y*w+x]=hazeIdx; tpos+=step; continue; }
         const pi=wt[((tpos|0)&63)*64+texX]; tpos+=step;
-        const s=(pi&15)-sh;
+        const s=(pi&15)-sh+(hz?hz*2:0);
         fb[y*w+x]=(pi&240)|(s<0?0:s>15?15:s);
       }
     }
@@ -232,19 +232,35 @@ const Engine = {
       let x0=scr-(sprW>>1), x1=x0+sprW;
       if(x1<0||x0>=w) continue;
       const tex=e.tex, tw=e.tw, th=e.th;
-      const sh=shadeAt(trY,0)+(e.shade||0)-(glowAt(e.x|0,e.y|0)|0);
+      const hz=hazeOn?hazeLvl(trY):0;
+      if(hz===3) continue; // fully inside the fog bank
+      const sh=shadeAt(trY,0)+(e.shade||0)-(glowAt(e.x|0,e.y|0)|0)-(hz*2); // negative shade = pale fog lift
       const ghost=e.ghost;
-      const hz=hazeOn?hazeLvl(trY):0; // far sprites dissolve into the haze too
+      // soft ground shadow first — grounds every being on the floor plane
+      if(!e.noShadow){
+        const shW=(sprW*0.42)|0, shH=Math.max(2,(sprW*0.10)|0);
+        const gy0=horizon+((h/trY)>>1)+vOff;
+        for(let sy=gy0-shH;sy<gy0+shH;sy++){
+          if(sy<0||sy>=h) continue;
+          const half=Math.abs(sy-gy0)/shH;
+          const rw=(shW*Math.sqrt(Math.max(0,1-half*half)))|0;
+          for(let sx=Math.max(0,scr-rw);sx<Math.min(w,scr+rw);sx++){
+            if(zb[sx]<=trY) continue;
+            if(((sx*73856093)^(sy*19349663))&4) continue; // 50% soft
+            const pi=fb[sy*w+sx], sv=(pi&15)-2;
+            fb[sy*w+sx]=(pi&240)|(sv<0?0:sv);
+          }
+        }
+      }
       for(let sx=Math.max(0,x0);sx<Math.min(w,x1);sx++){
         if(zb[sx]<=trY) continue;
         const texX=((sx-x0)*tw/sprW)|0;
         for(let sy=Math.max(0,y0);sy<Math.min(h,y1);sy++){
           if(ghost&&((sx+sy)&1)) continue; // dithered translucency
-          if(hz&&hzHash(sx,sy)<HZT[hz]) continue;
           const pi=tex[(((sy-y0)*th/sprH)|0)*tw+texX];
           if(!pi) continue;
           const s=(pi&15)-sh;
-          fb[sy*w+sx]=(pi&240)|(s<0?0:s);
+          fb[sy*w+sx]=(pi&240)|(s<0?0:s>15?15:s);
         }
       }
       if(e.onScreen) e.onScreen(scr/w, trY);

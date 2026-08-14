@@ -667,7 +667,17 @@ const World = {
           lm[y*map.w+x]=v>6?6:v;
         }
     }
-    map.lightMap=lm;
+    const sm=new Uint8Array(lm.length); // 3x3 smooth — no hard light seams between cells
+    for(let y=0;y<map.h;y++)for(let x=0;x<map.w;x++){
+      let acc=0,n=0;
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+        const xx=x+dx,yy=y+dy;
+        if(xx<0||yy<0||xx>=map.w||yy>=map.h) continue;
+        acc+=lm[yy*map.w+xx]; n++;
+      }
+      sm[y*map.w+x]=Math.round(acc/n);
+    }
+    map.lightMap=sm;
   },
   buildOutdoor(){
     const w=96,h=96, cells=new Uint8Array(w*h), floor=new Uint8Array(w*h);
@@ -691,6 +701,10 @@ const World = {
     for(let y=0;y<t.h;y++)for(let x=0;x<t.w;x++){
       const wi=(TOWN_Y+y)*w+(TOWN_X+x);
       cells[wi]=t.cells[y*t.w+x]; floor[wi]=t.floor[y*t.w+x];
+    }
+    for(let y=0;y<t.h;y++)for(let x=0;x<t.w;x++){ // blocks 2 & 4 use the cross-braced facade
+      const wi=(TOWN_Y+y)*w+(TOWN_X+x);
+      if(cells[wi]===2&&((x>=10&&x<=15)||(x>=27&&x<=34))) cells[wi]=10;
     }
     for(const d of t.decor) map.decor.push({...d,x:d.x+TOWN_X,y:d.y+TOWN_Y});
     for(const s of t.shops) map.shops.push({x:s.x+TOWN_X,y:s.y+TOWN_Y,shop:s.shop});
@@ -803,7 +817,7 @@ const World = {
       {up:{map:'dun2',x:27.5,y:14.5},down:{map:'dun2',x:27.5,y:14.5}});
   },
   spawnPoint(){ return {map:'outdoor',x:TOWN_X+4.5,y:TOWN_Y+7.5,ang:-Math.PI/2}; }, // main street, facing weapon smith
-  templePoint(){ return {map:'outdoor',x:TOWN_X+4.5,y:TOWN_Y+9.2,ang:Math.PI/2}; },
+  templePoint(){ return {map:'outdoor',x:TOWN_X+4.5,y:TOWN_Y+8.6,ang:0}; }, // wake facing down the plaza, not a wall
 };
 
 // ---------- quests ----------
@@ -1007,9 +1021,8 @@ const Engine = {
     const warmHour=(hh>=4.8&&hh<7.5)||(hh>=18.5&&hh<21);
     const hazeOn=outdoor&&light>0.25;
     const hazeIdx=warmHour? palIdx(12,(5+light*5)|0) : palIdx(3,(9+light*4)|0);
-    const hazeLvl=d=>d>28?3:d>19?2:d>12?1:0; // 0 none, 1=25%, 2=50%, 3=75% dither to sky
-    const HZT=[0,4,8,12]; // thresholds per haze level
-    const hzHash=(x,y)=>(((x*73856093)^(y*19349663))>>>4)&15; // decorrelated dither, no mesh artifact
+    const hazeLvl=d=>d>30?3:d>21?2:d>13?1:0; // 0 none, 1 pale, 2 paler+speckle, 3 solid sky
+    const hzHash=(x,y)=>(((x*73856093)^(y*19349663))>>>4)&15;
     const cellJit=(cx,cy)=>((cx*97+cy*57)&63); // per-cell texture offset kills tiling
     // sky / ceiling
     if(outdoor){
@@ -1039,7 +1052,8 @@ const Engine = {
         const row=y*w;
         for(let x=0;x<w;x++){
           const cx=fx|0, cy=fy|0;
-          if(hz&&hzHash(x,y)<HZT[hz]){ fb[row+x]=hazeIdx; fx+=stepX; fy+=stepY; continue; }
+          if(hz===3){ fb[row+x]=hazeIdx; fx+=stepX; fy+=stepY; continue; }
+          if(hz===2&&hzHash(x,y)<6){ fb[row+x]=hazeIdx; fx+=stepX; fy+=stepY; continue; }
           let tex;
           if(cx>=0&&cy>=0&&cx<mw&&cy<mh){
             tex=isFloor? flTexs[floorIds[cy*mw+cx]] : ceilTex; // water frames swapped in Art.tick
@@ -1047,7 +1061,7 @@ const Engine = {
           const jit=cellJit(cx,cy);
           const tx=((((fx-cx)*64)|0)+jit)&63, ty=((((fy-cy)*64)|0)+(jit>>1))&63;
           let pi=tex[ty*64+tx];
-          let s=(pi&15)-sh;
+          let s=(pi&15)-sh+(hz?hz*2:0); // fog lifts far ground toward pale
           if(lm2&&cx>=0&&cy>=0&&cx<mw&&cy<mh) s+=lm2[cy*mw+cx];
           fb[row+x]=(pi&240)|(s<0?0:s>15?15:s);
           fx+=stepX; fy+=stepY;
@@ -1101,9 +1115,9 @@ const Engine = {
       let tpos=y0<0? -y0*step:0;
       const ys=Math.max(0,y0), ye=Math.min(h,y1);
       for(let y=ys;y<ye;y++){
-        if(hz&&hzHash(x,y)<HZT[hz]){ fb[y*w+x]=hazeIdx; tpos+=step; continue; }
+        if(hz===3||(hz===2&&hzHash(x,y)<6)){ fb[y*w+x]=hazeIdx; tpos+=step; continue; }
         const pi=wt[((tpos|0)&63)*64+texX]; tpos+=step;
-        const s=(pi&15)-sh;
+        const s=(pi&15)-sh+(hz?hz*2:0);
         fb[y*w+x]=(pi&240)|(s<0?0:s>15?15:s);
       }
     }
@@ -1124,19 +1138,35 @@ const Engine = {
       let x0=scr-(sprW>>1), x1=x0+sprW;
       if(x1<0||x0>=w) continue;
       const tex=e.tex, tw=e.tw, th=e.th;
-      const sh=shadeAt(trY,0)+(e.shade||0)-(glowAt(e.x|0,e.y|0)|0);
+      const hz=hazeOn?hazeLvl(trY):0;
+      if(hz===3) continue; // fully inside the fog bank
+      const sh=shadeAt(trY,0)+(e.shade||0)-(glowAt(e.x|0,e.y|0)|0)-(hz*2); // negative shade = pale fog lift
       const ghost=e.ghost;
-      const hz=hazeOn?hazeLvl(trY):0; // far sprites dissolve into the haze too
+      // soft ground shadow first — grounds every being on the floor plane
+      if(!e.noShadow){
+        const shW=(sprW*0.42)|0, shH=Math.max(2,(sprW*0.10)|0);
+        const gy0=horizon+((h/trY)>>1)+vOff;
+        for(let sy=gy0-shH;sy<gy0+shH;sy++){
+          if(sy<0||sy>=h) continue;
+          const half=Math.abs(sy-gy0)/shH;
+          const rw=(shW*Math.sqrt(Math.max(0,1-half*half)))|0;
+          for(let sx=Math.max(0,scr-rw);sx<Math.min(w,scr+rw);sx++){
+            if(zb[sx]<=trY) continue;
+            if(((sx*73856093)^(sy*19349663))&4) continue; // 50% soft
+            const pi=fb[sy*w+sx], sv=(pi&15)-2;
+            fb[sy*w+sx]=(pi&240)|(sv<0?0:sv);
+          }
+        }
+      }
       for(let sx=Math.max(0,x0);sx<Math.min(w,x1);sx++){
         if(zb[sx]<=trY) continue;
         const texX=((sx-x0)*tw/sprW)|0;
         for(let sy=Math.max(0,y0);sy<Math.min(h,y1);sy++){
           if(ghost&&((sx+sy)&1)) continue; // dithered translucency
-          if(hz&&hzHash(sx,sy)<HZT[hz]) continue;
           const pi=tex[(((sy-y0)*th/sprH)|0)*tw+texX];
           if(!pi) continue;
           const s=(pi&15)-sh;
-          fb[sy*w+sx]=(pi&240)|(s<0?0:s);
+          fb[sy*w+sx]=(pi&240)|(s<0?0:s>15?15:s);
         }
       }
       if(e.onScreen) e.onScreen(scr/w, trY);
@@ -1239,6 +1269,17 @@ Art.bakeTextures=function(){
       return palIdx(5,6+((x+y)%3));
     }
     return palIdx(1,10+(nm*4|0));
+  });
+  // 10: timber house B — stone footing, cross-braced plaster, different window
+  Art.walls[10]=bakePix(64,64,(x,y)=>{
+    if(y>=48){ const b2=brickPat(x,y,16,8,1.6); return palIdx(0,3+b2*4+(N(x/4,y/4)*2|0)); } // stone footing
+    const diag=Math.abs(((x+y)%32)-16)<2||Math.abs(((x-y+64)%32)-16)<2;
+    if(x<5||x>=59||(y>22&&y<27)||diag) return palIdx(1,3+(N2(x/2,y/2)*1.5|0));
+    if(x>=38&&x<54&&y>=6&&y<20){ // upper window, shifted
+      if(x<40||x>=52||y<8||y>=18) return palIdx(1,4);
+      return palIdx(3,5+((x+y)%3));
+    }
+    return palIdx(1,9+(N(x/5,y/5)*4|0));
   });
   // 3: mountain rock
   Art.walls[3]=bakePix(64,64,(x,y)=>{
@@ -1351,9 +1392,10 @@ Art.bakeTextures=function(){
     const b=brickPat(x,y,16,8,1.4);
     return palIdx(11,(b*3+N(x/4,y/4)*2|0));
   });
-  Art.ceilings.dun3=bakePix(64,64,(x,y)=>{
-    const v=Math.abs(N(x/9,y/16)-0.5)<0.02;
-    return v?palIdx(5,7):palIdx(13,1+(N2(x/5,y/5)*2|0));
+  Art.ceilings.dun3=bakePix(64,64,(x,y)=>{ // coffered dark squares with gold studs
+    const inCoffer=(x%21>3&&x%21<18&&y%21>3&&y%21<18);
+    if((x%21===10||x%21===11)&&(y%21===10||y%21===11)) return palIdx(5,6); // stud
+    return palIdx(13,(inCoffer?0:2)+(N2(x/5,y/5)*1.5|0));
   });
 };
 Art.tick=function(ms){
@@ -1394,7 +1436,8 @@ Art.sky=function(timeMin){
     for(const [cx,cy,cw,ch,op] of clouds){
       let ddx=Math.min(Math.abs(x-cx),w-Math.abs(x-cx))/cw, ddy=(y-cy)/ch;
       const cd=ddx*ddx+ddy*ddy;
-      if(cd<1){ const k=(1-cd)*op;
+      if(cd<1){ const nk=0.7+(((x*131+y*57)%13)/13)*0.6; // ragged edges, no airbrush blobs
+        const k=Math.min(1,(1-cd)*op*nk);
         const cr=isNight?55:warm?250:245, cg=isNight?58:warm?185:243, cb=isNight?72:warm?135:250;
         R=lerp(R,cr,k);G=lerp(G,cg,k);B=lerp(B,cb,k*0.9); }
     }
@@ -1520,6 +1563,21 @@ Art.bakeUI=function(){
     return 0;
   });
   Art.ui.barTex=bakePix(8,8,(x,y)=>palIdx(0,4+(N(x/3,y/3)*3|0)));
+  // faint carved crest — fills the dead parchment on menu screens
+  Art.ui.crest=bakePix(200,200,(x,y)=>{
+    const cx=(x-100)/88, cy=(y-100)/88, r=Math.hypot(cx,cy);
+    if(r>1) return 0;
+    let d=0;
+    if(Math.abs(r-0.94)<0.05) d=-1;                      // outer ring
+    if(Math.abs(r-0.8)<0.03) d=1;
+    // crown silhouette
+    const inCrown=(Math.abs(cx)<0.52&&cy>-0.1&&cy<0.34)||
+      (cy<=-0.1&&cy>-0.45&&(Math.abs(cx+0.4)<0.09||Math.abs(cx)<0.09||Math.abs(cx-0.4)<0.09));
+    if(inCrown) d=1;
+    if(Math.abs(cy-0.34)<0.045&&Math.abs(cx)<0.55) d=2;  // crown base band
+    if(d===0&&r<0.94) return 0;
+    return palIdx(1,clamp(9+d,6,12));
+  });
 };
 
 // ---------- title vista (lazy-baked painted scene) ----------
@@ -1652,7 +1710,7 @@ function drawHumanoid(g,W,H,frame,p){
   limb(g,cx-4.5*s,hipY,cx-6*s-walk*0.6,groundY,6.5*s,p.legs||p.cloth2||'#4a3620');
   limb(g,cx+4.5*s,hipY,cx+6*s+walk*0.6,groundY,6.5*s,darken(p.legs||p.cloth2||'#4a3620',20));
   // torso (broad shoulders taper to hip; gentle rim so it never reads as a hole)
-  vol(g,cx,chestY+9*s,12*s*(p.bulk||1),16*s,p.cloth,{lo:darken(p.cloth,32)});
+  vol(g,cx,chestY+9*s,12*s*(p.bulk||1),16*s,p.cloth,{lo:darken(p.cloth,18),hi:lighten(p.cloth,34)});
   vol(g,cx,chestY+2*s,12.5*s*(p.bulk||1),7*s,lighten(p.cloth,8),{noline:1}); // shoulder mass
   if(p.tabard){ g.fillStyle=p.tabard; g.fillRect(cx-5*s,chestY-2*s,10*s,24*s); }
   if(p.belt){ g.fillStyle='#3a2a14'; g.fillRect(cx-10*s,hipY-4*s,20*s,3.5*s); }
@@ -1681,7 +1739,8 @@ function drawHumanoid(g,W,H,frame,p){
   // headgear
   if(p.hood){ g.fillStyle=p.hood; g.beginPath(); g.arc(cx,headY-headR*0.15,headR*1.25,Math.PI*0.95,Math.PI*2.05); g.lineTo(cx+headR*1.1,headY+headR*0.9); g.lineTo(cx-headR*1.1,headY+headR*0.9); g.fill();
     g.fillStyle='rgba(8,6,4,0.55)'; g.beginPath(); g.ellipse(cx,headY,headR*0.72,headR*0.8,0,0,7); g.fill(); // hood shadow
-    for(const dd of [-1,1]){ g.fillStyle=p.eyesGlow||'#d8d0b8'; g.fillRect(cx+dd*headR*0.34-1.4,headY-headR*0.1,2.8,2.2); } }
+    for(const dd of [-1,1]){ g.fillStyle=p.eyesGlow||'#e8dcc0'; g.fillRect(cx+dd*headR*0.36-1.8,headY-headR*0.12,3.6,2.8); }
+    g.fillStyle='rgba(200,160,130,0.8)'; g.fillRect(cx-headR*0.2,headY+headR*0.42,headR*0.4,2); }
   if(p.helmet){ vol(g,cx,headY-headR*0.45,headR*1.05,headR*0.7,p.helmet,{noline:1}); if(p.plume){ g.strokeStyle=p.plume; g.lineWidth=3; g.beginPath(); g.moveTo(cx,headY-headR*1.1); g.quadraticCurveTo(cx+6,headY-headR*2.1,cx+11,headY-headR*1.4); g.stroke(); } }
   if(p.hair&&!p.helmet&&!p.hood){ g.fillStyle=p.hair; g.beginPath(); g.arc(cx,headY-headR*0.35,headR*0.95,Math.PI*0.9,Math.PI*2.1); g.fill(); }
   if(p.mask){ g.fillStyle='#e8e4d0'; g.fillRect(cx-headR*0.8,headY-headR*0.5,headR*1.6,headR*0.9); g.fillStyle='#181008'; g.fillRect(cx-headR*0.45,headY-2,2,3); g.fillRect(cx+headR*0.25,headY-2,2,3); }
@@ -2053,8 +2112,12 @@ function bakeAllIcons(){
   bakeIcon('quarterstaff',g=>{ g.save(); g.translate(12,12); g.rotate(-Math.PI/4); g.fillStyle='#8a6a40'; g.fillRect(-1.5,-11,3,22); g.fillStyle='#5a4020'; g.fillRect(-1.5,-11,3,3); g.fillRect(-1.5,8,3,3); g.restore(); });
   bakeIcon('runestaff',g=>{ g.save(); g.translate(12,13); g.rotate(-Math.PI/4); g.fillStyle='#5a4020'; g.fillRect(-1.5,-8,3,20); vol(g,0,-10,4,4,'#40c0c8',{noline:1}); g.restore(); });
   const torso=(g,col,pattern)=>{ g.fillStyle=col; g.beginPath(); g.moveTo(5,6); g.lineTo(9,3); g.lineTo(15,3); g.lineTo(19,6); g.lineTo(18,12); g.lineTo(16,13); g.lineTo(16,21); g.lineTo(8,21); g.lineTo(8,13); g.lineTo(6,12); g.fill(); g.strokeStyle='rgba(20,12,8,0.6)'; g.stroke(); if(pattern==='rings'){ g.strokeStyle='rgba(220,224,232,0.5)'; for(let y=6;y<20;y+=3){ g.beginPath(); g.moveTo(8,y); g.quadraticCurveTo(12,y+2,16,y); g.stroke(); } } if(pattern==='studs'){ g.fillStyle='#9aa0ac'; for(let y=7;y<19;y+=4)for(let x=9;x<16;x+=3) g.fillRect(x,y,1.6,1.6); } if(pattern==='plate'){ g.strokeStyle='rgba(240,244,252,0.6)'; g.beginPath(); g.moveTo(12,4); g.lineTo(12,20); g.stroke(); g.beginPath(); g.moveTo(7,10); g.lineTo(17,10); g.stroke(); } };
-  bakeIcon('padded',g=>torso(g,'#b8a880'));
-  bakeIcon('leatherarm',g=>torso(g,'#8a6a40'));
+  bakeIcon('padded',g=>{ torso(g,'#c0ac7c'); g.strokeStyle='rgba(90,70,40,0.7)'; g.lineWidth=1;
+    for(let yy=6;yy<20;yy+=3.5){ g.beginPath(); g.moveTo(8,yy); g.lineTo(16,yy); g.stroke(); }
+    for(let xx=9;xx<17;xx+=3.5){ g.beginPath(); g.moveTo(xx,5); g.lineTo(xx,20); g.stroke(); } });
+  bakeIcon('leatherarm',g=>{ torso(g,'#8a5c30'); g.strokeStyle='#5a3c1c'; g.lineWidth=2;
+    g.beginPath(); g.moveTo(9,4); g.lineTo(15,9); g.stroke(); g.beginPath(); g.moveTo(15,4); g.lineTo(9,9); g.stroke();
+    g.fillStyle='#6a4424'; g.fillRect(8,14,8,2.5); });
   bakeIcon('studded',g=>torso(g,'#7a5a34','studs'));
   bakeIcon('chainmail',g=>torso(g,'#8a92a0','rings'));
   bakeIcon('platearm',g=>torso(g,'#b8bec8','plate'));
@@ -2410,7 +2473,7 @@ const UI = {
     // facing
     const dirs=['E','SE','S','SW','W','NW','N','NE'];
     const di=Math.round(((Game.ang%(2*Math.PI))+2*Math.PI)%(2*Math.PI)/(Math.PI/4))%8;
-    E.textC('Facing '+dirs[di],rx+rw/2,62,{size:9,ramp:1});
+    E.textC('Heading '+dirs[di],rx+rw/2,62,{size:9,ramp:1});
     let by=76; const bh=28, bw=rw-4;
     this.btn(rx,by,bw,bh,'Quests (Q)',()=>UI.open(UI.questScreen())); by+=bh+4;
     this.btn(rx,by,bw,bh,'Spells (B)',()=>UI.open(UI.spellScreen(Game.activePc))); by+=bh+4;
@@ -2481,6 +2544,7 @@ const UI = {
   chrome(title){
     const E=Engine;
     E.blit(Art.ui.parchment,SCREEN_W,SCREEN_H,0,0);
+    if(Art.ui.crest) E.blit(Art.ui.crest,200,200,(SCREEN_W-200)/2|0,(SCREEN_H-200)/2|0);
     E.textC(title,SCREEN_W/2,20,{size:22,ramp:1,bright:false});
     E.fillRect(80,46,SCREEN_W-160,2,palIdx(1,4));
     this.btn(SCREEN_W-90,14,72,26,'Close',()=>{ UI.close(); });
@@ -2666,7 +2730,9 @@ const UI = {
           const s=SPELLS[id]; if(s.school!==school) continue;
           const known=pc.spells.includes(id);
           const can=known&&Spellcraft.canCast(pc,id).ok;
-          E.text(s.name,60,y+6,{size:11,ramp:known?(can?5:0):11,bright:can});
+          const gemRamp={fire:4,air:8,water:3,earth:13,spirit:15,mind:10,body:2,light:5,dark:6}[s.school];
+          E.fillRect(46,y+4,10,10,palIdx(gemRamp,9)); E.frameRect(46,y+4,10,10,palIdx(gemRamp,4));
+          E.text(s.name,62,y+6,{size:11,ramp:known?(can?5:0):11,bright:can});
           E.text(s.sp+' sp — '+(s.req>=7?'Master':s.req>=4?'Expert':'Novice'),210,y+6,{size:9,ramp:0});
           E.text(UI.spellBlurb(s),320,y+6,{size:9,ramp:0});
           if(known) UI.btn(SCREEN_W-120,y,84,24,'Cast',()=>{ if(Game.castFromBook(pi,id)) UI.close(); },{size:9});
@@ -2716,9 +2782,18 @@ const UI = {
         UI.chrome(World.maps[Game.mapId].name+' — Map');
         const E=Engine,m=World.maps[Game.mapId];
         const ex=Game.explored[Game.mapId];
-        const cs=Math.max(2,Math.min(((SCREEN_W-120)/m.w)|0,((SCREEN_H-140)/m.h)|0));
-        const ox=(SCREEN_W-m.w*cs)/2|0, oy=70;
-        for(let y2=0;y2<m.h;y2++)for(let x2=0;x2<m.w;x2++){
+        // zoom to what you have explored (min window so early maps still read)
+        let x0=m.w,y0=m.h,x1=0,y1=0;
+        for(let yy=0;yy<m.h;yy++)for(let xx=0;xx<m.w;xx++){ if(ex[yy*m.w+xx]){ if(xx<x0)x0=xx; if(xx>x1)x1=xx; if(yy<y0)y0=yy; if(yy>y1)y1=yy; } }
+        if(x1<x0){ x0=0;y0=0;x1=m.w-1;y1=m.h-1; }
+        const pad=4;
+        x0=Math.max(0,x0-pad); y0=Math.max(0,y0-pad); x1=Math.min(m.w-1,x1+pad); y1=Math.min(m.h-1,y1+pad);
+        if(x1-x0<30){ const c=(x0+x1)/2|0; x0=Math.max(0,c-15); x1=Math.min(m.w-1,c+15); }
+        if(y1-y0<24){ const c=(y0+y1)/2|0; y0=Math.max(0,c-12); y1=Math.min(m.h-1,c+12); }
+        const vw2=x1-x0+1, vh2=y1-y0+1;
+        const cs=Math.max(3,Math.min(((SCREEN_W-120)/vw2)|0,((SCREEN_H-150)/vh2)|0));
+        const ox=((SCREEN_W-vw2*cs)/2|0)-x0*cs, oy=76-y0*cs;
+        for(let y2=y0;y2<=y1;y2++)for(let x2=x0;x2<=x1;x2++){
           if(!ex[y2*m.w+x2]) continue;
           const c=m.cells[y2*m.w+x2], f=m.floor[y2*m.w+x2];
           let col=c? (c===7||c===9?palIdx(1,6):palIdx(0,4)) : f===6?palIdx(3,6): f===1?palIdx(1,7): f===2?palIdx(0,8): m.outdoor?palIdx(2,6):palIdx(11,6);
@@ -2796,8 +2871,9 @@ const UI = {
       draw(){
         const E=Engine,P=Game.party;
         UI.chrome(npc.name);
-        E.blit(Art.portraits[npc.portrait],58,66,60,80);
-        E.frameRect(58,78,62,70,palIdx(5,8));
+        E.blit(Art.portraits[npc.portrait],58,66,24,84,{scale:2});
+        E.frameRect(22,82,120,136,palIdx(5,8));
+        E.textC(npc.name,82,224,{size:9,ramp:1});
         const text=this.text||npc.hello||(npc.rumors?npc.rumors[0]:'...');
         const endY=UI.wrapText(text,150,90,420,11);
         let y=Math.max(170,endY+18);
@@ -2837,13 +2913,13 @@ const UI = {
         const E=Engine,P=Game.party,npc=NPCS[npcId],self=this;
         UI.chrome(titles[kind]);
         UI.hit.pop(); UI.btn(SCREEN_W-90,14,72,26,'Leave',()=>UI.close());
-        E.blit(Art.portraits[npc.portrait],58,66,60,80);
-        E.frameRect(58,78,62,70,palIdx(5,8));
-        E.text(npc.name,60,152,{size:9,ramp:1});
-        E.text('Party gold: '+P.gold+(kind==='bank'?'    Bank: '+P.bank:''),60,170,{size:11,ramp:5,bright:true});
+        E.blit(Art.portraits[npc.portrait],58,66,24,84,{scale:2});
+        E.frameRect(22,82,120,136,palIdx(5,8));
+        E.textC(npc.name,82,224,{size:9,ramp:1});
+        E.text('Party gold: '+P.gold+(kind==='bank'?'   Bank: '+P.bank:''),150,170,{size:11,ramp:5,bright:true});
         // quests live in dialog — every keeper can be spoken to (campaign-critical)
         const hasWork=Object.keys(QUESTS).some(qid=>QUESTS[qid].giver===npcId&&(Quests.offerable(P,qid)||['active','done'].includes(Quests.status(P,qid))));
-        UI.btn(36,192,110,26,hasWork?'Talk — work!':'Talk',()=>UI.open(UI.dialogScreen(npcId)),{size:9,ramp:hasWork?5:0});
+        UI.btn(24,242,118,26,hasWork?'Talk — work!':'Talk',()=>UI.open(UI.dialogScreen(npcId)),{size:9,ramp:hasWork?5:0});
         // merchant skill: best in party (rules-derived prices)
         const merch=Math.max(...P.pcs.map(pc=>pc.skills.merchant||0));
         // pc selector: services use selPc; buy/sell grids follow the ACTIVE hero's pack
@@ -4050,7 +4126,7 @@ const Game = {
       if(m.attackT&&now-m.attackT<420) frame='attack';
       else if(m.state==='chase') frame=wob(m)?'walk':'idle';
       const breathe=Math.sin(now/620+(m.homeX*7+m.homeY*3))*0.006; // idle life
-      ents.push({x:m.x,y:m.y,tex:sp.frames[frame],tw:sp.tw,th:sp.th,scale:d.scale+breathe,ghost:m.mid==='ghost',
+      ents.push({x:m.x,y:m.y,tex:sp.frames[frame],tw:sp.tw,th:sp.th,scale:d.scale+breathe,ghost:m.mid==='ghost',noShadow:m.mid==='ghost',
         vOff:m.mid==='ghost'?Math.sin(now/480+m.homeX)*0.03-0.05:0,
         shade:(m.hurtT&&now-m.hurtT<140?-3:0)+(m.mid==='ghost'?-4:0)});
     }
@@ -4070,7 +4146,7 @@ const Game = {
       if(dc.kind==='brazier'&&flick) key='decor_brazier_b';
       if(dc.kind==='tree'&&((dc.x*7+dc.y*13)|0)%2) key='decor_tree2';
       const sp=Art.sprites[key]; if(!sp) continue;
-      const dscale=dc.kind.startsWith('tree')?1.6:dc.kind==='cryptgate'?1.15:0.9;
+      const th=((dc.x*13+dc.y*7)|0)%10; const dscale=dc.kind.startsWith('tree')?(1.5+th*0.09):dc.kind==='cryptgate'?1.15:0.9;
       ents.push({x:dc.x,y:dc.y,tex:sp.frames.idle,tw:sp.tw,th:sp.th,scale:dscale});
     }
     for(const ch of map.chests){
@@ -4080,7 +4156,7 @@ const Game = {
     }
     for(const p of this.projectiles){
       const sp=Art.sprites['proj_'+p.proj]||Art.sprites.proj_fire;
-      ents.push({x:p.x,y:p.y,tex:sp.frames.idle,tw:sp.tw,th:sp.th,scale:0.3,vOff:-0.15});
+      ents.push({x:p.x,y:p.y,tex:sp.frames.idle,tw:sp.tw,th:sp.th,scale:0.3,vOff:-0.15,noShadow:true});
     }
     return ents;
   },

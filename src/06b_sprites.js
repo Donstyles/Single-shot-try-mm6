@@ -64,7 +64,7 @@ function drawHumanoid(g,W,H,frame,p){
   limb(g,cx-4.5*s,hipY,cx-6*s-walk*0.6,groundY,6.5*s,p.legs||p.cloth2||'#4a3620');
   limb(g,cx+4.5*s,hipY,cx+6*s+walk*0.6,groundY,6.5*s,darken(p.legs||p.cloth2||'#4a3620',20));
   // torso (broad shoulders taper to hip; gentle rim so it never reads as a hole)
-  vol(g,cx,chestY+9*s,12*s*(p.bulk||1),16*s,p.cloth,{lo:darken(p.cloth,32)});
+  vol(g,cx,chestY+9*s,12*s*(p.bulk||1),16*s,p.cloth,{lo:darken(p.cloth,18),hi:lighten(p.cloth,34)});
   vol(g,cx,chestY+2*s,12.5*s*(p.bulk||1),7*s,lighten(p.cloth,8),{noline:1}); // shoulder mass
   if(p.tabard){ g.fillStyle=p.tabard; g.fillRect(cx-5*s,chestY-2*s,10*s,24*s); }
   if(p.belt){ g.fillStyle='#3a2a14'; g.fillRect(cx-10*s,hipY-4*s,20*s,3.5*s); }
@@ -93,7 +93,8 @@ function drawHumanoid(g,W,H,frame,p){
   // headgear
   if(p.hood){ g.fillStyle=p.hood; g.beginPath(); g.arc(cx,headY-headR*0.15,headR*1.25,Math.PI*0.95,Math.PI*2.05); g.lineTo(cx+headR*1.1,headY+headR*0.9); g.lineTo(cx-headR*1.1,headY+headR*0.9); g.fill();
     g.fillStyle='rgba(8,6,4,0.55)'; g.beginPath(); g.ellipse(cx,headY,headR*0.72,headR*0.8,0,0,7); g.fill(); // hood shadow
-    for(const dd of [-1,1]){ g.fillStyle=p.eyesGlow||'#d8d0b8'; g.fillRect(cx+dd*headR*0.34-1.4,headY-headR*0.1,2.8,2.2); } }
+    for(const dd of [-1,1]){ g.fillStyle=p.eyesGlow||'#e8dcc0'; g.fillRect(cx+dd*headR*0.36-1.8,headY-headR*0.12,3.6,2.8); }
+    g.fillStyle='rgba(200,160,130,0.8)'; g.fillRect(cx-headR*0.2,headY+headR*0.42,headR*0.4,2); }
   if(p.helmet){ vol(g,cx,headY-headR*0.45,headR*1.05,headR*0.7,p.helmet,{noline:1}); if(p.plume){ g.strokeStyle=p.plume; g.lineWidth=3; g.beginPath(); g.moveTo(cx,headY-headR*1.1); g.quadraticCurveTo(cx+6,headY-headR*2.1,cx+11,headY-headR*1.4); g.stroke(); } }
   if(p.hair&&!p.helmet&&!p.hood){ g.fillStyle=p.hair; g.beginPath(); g.arc(cx,headY-headR*0.35,headR*0.95,Math.PI*0.9,Math.PI*2.1); g.fill(); }
   if(p.mask){ g.fillStyle='#e8e4d0'; g.fillRect(cx-headR*0.8,headY-headR*0.5,headR*1.6,headR*0.9); g.fillStyle='#181008'; g.fillRect(cx-headR*0.45,headY-2,2,3); g.fillRect(cx+headR*0.25,headY-2,2,3); }
@@ -465,8 +466,12 @@ function bakeAllIcons(){
   bakeIcon('quarterstaff',g=>{ g.save(); g.translate(12,12); g.rotate(-Math.PI/4); g.fillStyle='#8a6a40'; g.fillRect(-1.5,-11,3,22); g.fillStyle='#5a4020'; g.fillRect(-1.5,-11,3,3); g.fillRect(-1.5,8,3,3); g.restore(); });
   bakeIcon('runestaff',g=>{ g.save(); g.translate(12,13); g.rotate(-Math.PI/4); g.fillStyle='#5a4020'; g.fillRect(-1.5,-8,3,20); vol(g,0,-10,4,4,'#40c0c8',{noline:1}); g.restore(); });
   const torso=(g,col,pattern)=>{ g.fillStyle=col; g.beginPath(); g.moveTo(5,6); g.lineTo(9,3); g.lineTo(15,3); g.lineTo(19,6); g.lineTo(18,12); g.lineTo(16,13); g.lineTo(16,21); g.lineTo(8,21); g.lineTo(8,13); g.lineTo(6,12); g.fill(); g.strokeStyle='rgba(20,12,8,0.6)'; g.stroke(); if(pattern==='rings'){ g.strokeStyle='rgba(220,224,232,0.5)'; for(let y=6;y<20;y+=3){ g.beginPath(); g.moveTo(8,y); g.quadraticCurveTo(12,y+2,16,y); g.stroke(); } } if(pattern==='studs'){ g.fillStyle='#9aa0ac'; for(let y=7;y<19;y+=4)for(let x=9;x<16;x+=3) g.fillRect(x,y,1.6,1.6); } if(pattern==='plate'){ g.strokeStyle='rgba(240,244,252,0.6)'; g.beginPath(); g.moveTo(12,4); g.lineTo(12,20); g.stroke(); g.beginPath(); g.moveTo(7,10); g.lineTo(17,10); g.stroke(); } };
-  bakeIcon('padded',g=>torso(g,'#b8a880'));
-  bakeIcon('leatherarm',g=>torso(g,'#8a6a40'));
+  bakeIcon('padded',g=>{ torso(g,'#c0ac7c'); g.strokeStyle='rgba(90,70,40,0.7)'; g.lineWidth=1;
+    for(let yy=6;yy<20;yy+=3.5){ g.beginPath(); g.moveTo(8,yy); g.lineTo(16,yy); g.stroke(); }
+    for(let xx=9;xx<17;xx+=3.5){ g.beginPath(); g.moveTo(xx,5); g.lineTo(xx,20); g.stroke(); } });
+  bakeIcon('leatherarm',g=>{ torso(g,'#8a5c30'); g.strokeStyle='#5a3c1c'; g.lineWidth=2;
+    g.beginPath(); g.moveTo(9,4); g.lineTo(15,9); g.stroke(); g.beginPath(); g.moveTo(15,4); g.lineTo(9,9); g.stroke();
+    g.fillStyle='#6a4424'; g.fillRect(8,14,8,2.5); });
   bakeIcon('studded',g=>torso(g,'#7a5a34','studs'));
   bakeIcon('chainmail',g=>torso(g,'#8a92a0','rings'));
   bakeIcon('platearm',g=>torso(g,'#b8bec8','plate'));

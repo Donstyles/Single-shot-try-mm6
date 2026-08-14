@@ -135,7 +135,17 @@ const World = {
           lm[y*map.w+x]=v>6?6:v;
         }
     }
-    map.lightMap=lm;
+    const sm=new Uint8Array(lm.length); // 3x3 smooth — no hard light seams between cells
+    for(let y=0;y<map.h;y++)for(let x=0;x<map.w;x++){
+      let acc=0,n=0;
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+        const xx=x+dx,yy=y+dy;
+        if(xx<0||yy<0||xx>=map.w||yy>=map.h) continue;
+        acc+=lm[yy*map.w+xx]; n++;
+      }
+      sm[y*map.w+x]=Math.round(acc/n);
+    }
+    map.lightMap=sm;
   },
   buildOutdoor(){
     const w=96,h=96, cells=new Uint8Array(w*h), floor=new Uint8Array(w*h);
@@ -275,7 +285,7 @@ const World = {
       {up:{map:'dun2',x:27.5,y:14.5},down:{map:'dun2',x:27.5,y:14.5}});
   },
   spawnPoint(){ return {map:'outdoor',x:TOWN_X+4.5,y:TOWN_Y+7.5,ang:-Math.PI/2}; }, // main street, facing weapon smith
-  templePoint(){ return {map:'outdoor',x:TOWN_X+4.5,y:TOWN_Y+9.2,ang:Math.PI/2}; },
+  templePoint(){ return {map:'outdoor',x:TOWN_X+4.5,y:TOWN_Y+8.6,ang:0}; }, // wake facing down the plaza, not a wall
 };
 
 // ---------- quests ----------

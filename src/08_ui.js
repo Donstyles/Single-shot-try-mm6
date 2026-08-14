@@ -47,7 +47,7 @@ const UI = {
     // facing
     const dirs=['E','SE','S','SW','W','NW','N','NE'];
     const di=Math.round(((Game.ang%(2*Math.PI))+2*Math.PI)%(2*Math.PI)/(Math.PI/4))%8;
-    E.textC('Facing '+dirs[di],rx+rw/2,62,{size:9,ramp:1});
+    E.textC('Heading '+dirs[di],rx+rw/2,62,{size:9,ramp:1});
     let by=76; const bh=28, bw=rw-4;
     this.btn(rx,by,bw,bh,'Quests (Q)',()=>UI.open(UI.questScreen())); by+=bh+4;
     this.btn(rx,by,bw,bh,'Spells (B)',()=>UI.open(UI.spellScreen(Game.activePc))); by+=bh+4;
@@ -118,6 +118,7 @@ const UI = {
   chrome(title){
     const E=Engine;
     E.blit(Art.ui.parchment,SCREEN_W,SCREEN_H,0,0);
+    if(Art.ui.crest) E.blit(Art.ui.crest,200,200,(SCREEN_W-200)/2|0,(SCREEN_H-200)/2|0);
     E.textC(title,SCREEN_W/2,20,{size:22,ramp:1,bright:false});
     E.fillRect(80,46,SCREEN_W-160,2,palIdx(1,4));
     this.btn(SCREEN_W-90,14,72,26,'Close',()=>{ UI.close(); });
@@ -303,7 +304,9 @@ const UI = {
           const s=SPELLS[id]; if(s.school!==school) continue;
           const known=pc.spells.includes(id);
           const can=known&&Spellcraft.canCast(pc,id).ok;
-          E.text(s.name,60,y+6,{size:11,ramp:known?(can?5:0):11,bright:can});
+          const gemRamp={fire:4,air:8,water:3,earth:13,spirit:15,mind:10,body:2,light:5,dark:6}[s.school];
+          E.fillRect(46,y+4,10,10,palIdx(gemRamp,9)); E.frameRect(46,y+4,10,10,palIdx(gemRamp,4));
+          E.text(s.name,62,y+6,{size:11,ramp:known?(can?5:0):11,bright:can});
           E.text(s.sp+' sp — '+(s.req>=7?'Master':s.req>=4?'Expert':'Novice'),210,y+6,{size:9,ramp:0});
           E.text(UI.spellBlurb(s),320,y+6,{size:9,ramp:0});
           if(known) UI.btn(SCREEN_W-120,y,84,24,'Cast',()=>{ if(Game.castFromBook(pi,id)) UI.close(); },{size:9});
@@ -353,9 +356,18 @@ const UI = {
         UI.chrome(World.maps[Game.mapId].name+' — Map');
         const E=Engine,m=World.maps[Game.mapId];
         const ex=Game.explored[Game.mapId];
-        const cs=Math.max(2,Math.min(((SCREEN_W-120)/m.w)|0,((SCREEN_H-140)/m.h)|0));
-        const ox=(SCREEN_W-m.w*cs)/2|0, oy=70;
-        for(let y2=0;y2<m.h;y2++)for(let x2=0;x2<m.w;x2++){
+        // zoom to what you have explored (min window so early maps still read)
+        let x0=m.w,y0=m.h,x1=0,y1=0;
+        for(let yy=0;yy<m.h;yy++)for(let xx=0;xx<m.w;xx++){ if(ex[yy*m.w+xx]){ if(xx<x0)x0=xx; if(xx>x1)x1=xx; if(yy<y0)y0=yy; if(yy>y1)y1=yy; } }
+        if(x1<x0){ x0=0;y0=0;x1=m.w-1;y1=m.h-1; }
+        const pad=4;
+        x0=Math.max(0,x0-pad); y0=Math.max(0,y0-pad); x1=Math.min(m.w-1,x1+pad); y1=Math.min(m.h-1,y1+pad);
+        if(x1-x0<30){ const c=(x0+x1)/2|0; x0=Math.max(0,c-15); x1=Math.min(m.w-1,c+15); }
+        if(y1-y0<24){ const c=(y0+y1)/2|0; y0=Math.max(0,c-12); y1=Math.min(m.h-1,c+12); }
+        const vw2=x1-x0+1, vh2=y1-y0+1;
+        const cs=Math.max(3,Math.min(((SCREEN_W-120)/vw2)|0,((SCREEN_H-150)/vh2)|0));
+        const ox=((SCREEN_W-vw2*cs)/2|0)-x0*cs, oy=76-y0*cs;
+        for(let y2=y0;y2<=y1;y2++)for(let x2=x0;x2<=x1;x2++){
           if(!ex[y2*m.w+x2]) continue;
           const c=m.cells[y2*m.w+x2], f=m.floor[y2*m.w+x2];
           let col=c? (c===7||c===9?palIdx(1,6):palIdx(0,4)) : f===6?palIdx(3,6): f===1?palIdx(1,7): f===2?palIdx(0,8): m.outdoor?palIdx(2,6):palIdx(11,6);
@@ -433,8 +445,9 @@ const UI = {
       draw(){
         const E=Engine,P=Game.party;
         UI.chrome(npc.name);
-        E.blit(Art.portraits[npc.portrait],58,66,60,80);
-        E.frameRect(58,78,62,70,palIdx(5,8));
+        E.blit(Art.portraits[npc.portrait],58,66,24,84,{scale:2});
+        E.frameRect(22,82,120,136,palIdx(5,8));
+        E.textC(npc.name,82,224,{size:9,ramp:1});
         const text=this.text||npc.hello||(npc.rumors?npc.rumors[0]:'...');
         const endY=UI.wrapText(text,150,90,420,11);
         let y=Math.max(170,endY+18);
@@ -474,13 +487,13 @@ const UI = {
         const E=Engine,P=Game.party,npc=NPCS[npcId],self=this;
         UI.chrome(titles[kind]);
         UI.hit.pop(); UI.btn(SCREEN_W-90,14,72,26,'Leave',()=>UI.close());
-        E.blit(Art.portraits[npc.portrait],58,66,60,80);
-        E.frameRect(58,78,62,70,palIdx(5,8));
-        E.text(npc.name,60,152,{size:9,ramp:1});
-        E.text('Party gold: '+P.gold+(kind==='bank'?'    Bank: '+P.bank:''),60,170,{size:11,ramp:5,bright:true});
+        E.blit(Art.portraits[npc.portrait],58,66,24,84,{scale:2});
+        E.frameRect(22,82,120,136,palIdx(5,8));
+        E.textC(npc.name,82,224,{size:9,ramp:1});
+        E.text('Party gold: '+P.gold+(kind==='bank'?'   Bank: '+P.bank:''),150,170,{size:11,ramp:5,bright:true});
         // quests live in dialog — every keeper can be spoken to (campaign-critical)
         const hasWork=Object.keys(QUESTS).some(qid=>QUESTS[qid].giver===npcId&&(Quests.offerable(P,qid)||['active','done'].includes(Quests.status(P,qid))));
-        UI.btn(36,192,110,26,hasWork?'Talk — work!':'Talk',()=>UI.open(UI.dialogScreen(npcId)),{size:9,ramp:hasWork?5:0});
+        UI.btn(24,242,118,26,hasWork?'Talk — work!':'Talk',()=>UI.open(UI.dialogScreen(npcId)),{size:9,ramp:hasWork?5:0});
         // merchant skill: best in party (rules-derived prices)
         const merch=Math.max(...P.pcs.map(pc=>pc.skills.merchant||0));
         // pc selector: services use selPc; buy/sell grids follow the ACTIVE hero's pack

@@ -238,7 +238,8 @@ Art.sky=function(timeMin){
     for(const [cx,cy,cw,ch,op] of clouds){
       let ddx=Math.min(Math.abs(x-cx),w-Math.abs(x-cx))/cw, ddy=(y-cy)/ch;
       const cd=ddx*ddx+ddy*ddy;
-      if(cd<1){ const k=(1-cd)*op;
+      if(cd<1){ const nk=0.7+(((x*131+y*57)%13)/13)*0.6; // ragged edges, no airbrush blobs
+        const k=Math.min(1,(1-cd)*op*nk);
         const cr=isNight?55:warm?250:245, cg=isNight?58:warm?185:243, cb=isNight?72:warm?135:250;
         R=lerp(R,cr,k);G=lerp(G,cg,k);B=lerp(B,cb,k*0.9); }
     }
@@ -364,6 +365,21 @@ Art.bakeUI=function(){
     return 0;
   });
   Art.ui.barTex=bakePix(8,8,(x,y)=>palIdx(0,4+(N(x/3,y/3)*3|0)));
+  // faint carved crest — fills the dead parchment on menu screens
+  Art.ui.crest=bakePix(200,200,(x,y)=>{
+    const cx=(x-100)/88, cy=(y-100)/88, r=Math.hypot(cx,cy);
+    if(r>1) return 0;
+    let d=0;
+    if(Math.abs(r-0.94)<0.05) d=-1;                      // outer ring
+    if(Math.abs(r-0.8)<0.03) d=1;
+    // crown silhouette
+    const inCrown=(Math.abs(cx)<0.52&&cy>-0.1&&cy<0.34)||
+      (cy<=-0.1&&cy>-0.45&&(Math.abs(cx+0.4)<0.09||Math.abs(cx)<0.09||Math.abs(cx-0.4)<0.09));
+    if(inCrown) d=1;
+    if(Math.abs(cy-0.34)<0.045&&Math.abs(cx)<0.55) d=2;  // crown base band
+    if(d===0&&r<0.94) return 0;
+    return palIdx(1,clamp(9+d,6,12));
+  });
 };
 
 // ---------- title vista (lazy-baked painted scene) ----------

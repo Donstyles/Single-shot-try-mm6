@@ -1031,7 +1031,7 @@ const Game = {
       if(m.attackT&&now-m.attackT<420) frame='attack';
       else if(m.state==='chase') frame=wob(m)?'walk':'idle';
       const breathe=Math.sin(now/620+(m.homeX*7+m.homeY*3))*0.006; // idle life
-      ents.push({x:m.x,y:m.y,tex:sp.frames[frame],tw:sp.tw,th:sp.th,scale:d.scale+breathe,ghost:m.mid==='ghost',
+      ents.push({x:m.x,y:m.y,tex:sp.frames[frame],tw:sp.tw,th:sp.th,scale:d.scale+breathe,ghost:m.mid==='ghost',noShadow:m.mid==='ghost',
         vOff:m.mid==='ghost'?Math.sin(now/480+m.homeX)*0.03-0.05:0,
         shade:(m.hurtT&&now-m.hurtT<140?-3:0)+(m.mid==='ghost'?-4:0)});
     }
@@ -1061,7 +1061,7 @@ const Game = {
     }
     for(const p of this.projectiles){
       const sp=Art.sprites['proj_'+p.proj]||Art.sprites.proj_fire;
-      ents.push({x:p.x,y:p.y,tex:sp.frames.idle,tw:sp.tw,th:sp.th,scale:0.3,vOff:-0.15});
+      ents.push({x:p.x,y:p.y,tex:sp.frames.idle,tw:sp.tw,th:sp.th,scale:0.3,vOff:-0.15,noShadow:true});
     }
     return ents;
   },
