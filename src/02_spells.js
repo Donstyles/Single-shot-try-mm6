@@ -75,6 +75,6 @@ const Spellcraft = {
   guildPrice(id){ const s=SPELLS[id]; return s.req>=7?2000:s.req>=4?400:60; },
   starting(cls){ // spells known at chargen
     return {paladin:['spirit_bless'],archer:['air_spark'],cleric:['body_heal','spirit_bless'],
-      sorcerer:['fire_bolt','light_torch'],druid:['earth_stone','body_heal'],knight:[]}[cls]||[];
+      sorcerer:['fire_bolt','air_spark'],druid:['earth_stone','body_heal'],knight:[]}[cls]||[];
   }
 };

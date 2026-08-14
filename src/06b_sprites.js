@@ -47,8 +47,8 @@ function drawWeapon(g,type,x,y,ang,len){
 // ---------- humanoid rig (64x96) ----------
 function drawHumanoid(g,W,H,frame,p){
   const cx=W/2, groundY=H-6;
-  const s=p.size||1;
-  const hipY=groundY-30*s, chestY=hipY-16*s, headY=chestY-15*s, headR=8*s*(p.headR||1);
+  const s=(p.size||1)*1.18;                 // bulked rig: monsters must own the frame
+  const hipY=groundY-34*s, chestY=hipY-18*s, headY=chestY-16*s, headR=9*s*(p.headR||1);
   if(frame==='corpse'){
     bloodPool(g,cx,groundY-2,20*s,5*s);
     vol(g,cx,groundY-7,17*s,6*s,p.cloth); // torso lying
@@ -58,24 +58,25 @@ function drawHumanoid(g,W,H,frame,p){
     if(p.weapon) drawWeapon(g,p.weapon,cx+8*s,groundY-2,1.35,16*s);
     return;
   }
-  shadowBlob(g,cx,groundY,14*s,4);
+  shadowBlob(g,cx,groundY,15*s,4);
   const walk=frame==='walk'?5*s:0;
   // legs
-  limb(g,cx-4*s,hipY,cx-5*s-walk*0.6,groundY,5*s,p.legs||p.cloth2||'#4a3620');
-  limb(g,cx+4*s,hipY,cx+5*s+walk*0.6,groundY,5*s,darken(p.legs||p.cloth2||'#4a3620',20));
-  // torso
-  vol(g,cx,chestY+8*s,10*s*(p.bulk||1),14*s,p.cloth);
-  if(p.tabard){ g.fillStyle=p.tabard; g.fillRect(cx-4*s,chestY-2*s,8*s,20*s); }
-  if(p.belt){ g.fillStyle='#3a2a14'; g.fillRect(cx-9*s,hipY-4*s,18*s,3*s); }
+  limb(g,cx-4.5*s,hipY,cx-6*s-walk*0.6,groundY,6.5*s,p.legs||p.cloth2||'#4a3620');
+  limb(g,cx+4.5*s,hipY,cx+6*s+walk*0.6,groundY,6.5*s,darken(p.legs||p.cloth2||'#4a3620',20));
+  // torso (broad shoulders taper to hip)
+  vol(g,cx,chestY+9*s,12*s*(p.bulk||1),16*s,p.cloth);
+  vol(g,cx,chestY+2*s,12.5*s*(p.bulk||1),7*s,lighten(p.cloth,8),{noline:1}); // shoulder mass
+  if(p.tabard){ g.fillStyle=p.tabard; g.fillRect(cx-5*s,chestY-2*s,10*s,24*s); }
+  if(p.belt){ g.fillStyle='#3a2a14'; g.fillRect(cx-10*s,hipY-4*s,20*s,3.5*s); }
   // off arm / shield
-  if(p.shield){ limb(g,cx-9*s,chestY+4*s,cx-14*s,chestY+12*s,4*s,p.skin); vol(g,cx-15*s,chestY+12*s,7*s,9*s,p.shieldCol||'#7a5a30'); }
-  else limb(g,cx-9*s,chestY+4*s,cx-13*s,chestY+16*s,4*s,p.sleeves||p.skin);
+  if(p.shield){ limb(g,cx-11*s,chestY+4*s,cx-16*s,chestY+13*s,5*s,p.skin); vol(g,cx-17*s,chestY+13*s,8.5*s,11*s,p.shieldCol||'#7a5a30'); }
+  else limb(g,cx-11*s,chestY+4*s,cx-15*s,chestY+18*s,5*s,p.sleeves||p.skin);
   // weapon arm
   const atk=frame==='attack';
-  const ax=cx+9*s, ay=chestY+4*s;
-  const hx=atk?cx+14*s:cx+12*s, hy=atk?chestY-10*s:chestY+15*s;
-  limb(g,ax,ay,hx,hy,4*s,p.sleeves||p.skin);
-  if(p.weapon) drawWeapon(g,p.weapon,hx,hy,atk?0.5:0.15,(p.weapon==='staff'?26:p.weapon==='club'?14:18)*s);
+  const ax=cx+11*s, ay=chestY+4*s;
+  const hx=atk?cx+16*s:cx+14*s, hy=atk?chestY-12*s:chestY+17*s;
+  limb(g,ax,ay,hx,hy,5*s,p.sleeves||p.skin);
+  if(p.weapon) drawWeapon(g,p.weapon,hx,hy,atk?0.5:0.15,(p.weapon==='staff'?28:p.weapon==='club'?15:20)*s);
   // head
   vol(g,cx,headY,headR,headR*1.12,p.skin);
   // face hint
@@ -237,13 +238,19 @@ const NPC_PAINTERS={
 };
 function drawTree(g,W,H,variant){
   const cx=W/2, gy=H-4;
-  shadowBlob(g,cx,gy,18,5);
-  limb(g,cx,gy,cx+(variant?3:-2),gy-34,7,'#5a4428');
+  shadowBlob(g,cx,gy,20,5);
+  limb(g,cx,gy,cx+(variant?3:-2),gy-30,8,'#5a4428');
+  limb(g,cx,gy-22,cx-9,gy-38,4,'#4a3820'); limb(g,cx,gy-26,cx+10,gy-42,4,'#4a3820');
   const leaf=variant?'#4a7a34':'#3e6e40';
-  vol(g,cx-10,gy-42,13,11,leaf,{noline:1});
-  vol(g,cx+9,gy-46,14,12,lighten(leaf,10),{noline:1});
-  vol(g,cx,gy-56,15,13,leaf,{noline:1});
-  vol(g,cx-2,gy-50,10,9,lighten(leaf,22),{noline:1});
+  // canopy: flat-shaded blob cluster (no radial rims — they read as rings)
+  const blob=(x,y,rx,ry,c)=>{ g.fillStyle=c; g.beginPath(); g.ellipse(x,y,rx,ry,0,0,7); g.fill(); };
+  blob(cx,gy-52,26,22,darken(leaf,28));
+  blob(cx-12,gy-44,15,12,leaf); blob(cx+11,gy-48,16,13,leaf);
+  blob(cx+2,gy-60,17,13,leaf); blob(cx-6,gy-54,12,10,lighten(leaf,14));
+  blob(cx+7,gy-56,9,8,lighten(leaf,26)); blob(cx-14,gy-50,7,6,lighten(leaf,20));
+  // leaf speckle for texture
+  for(let i=0;i<46;i++){ const a=i*2.4, r=(i*7919%23); const x=cx+Math.cos(a)*r, y=gy-52+Math.sin(a)*r*0.8;
+    g.fillStyle=(i%3)?darken(leaf,14):lighten(leaf,30); g.fillRect(x,y,2,2); }
 }
 const DECOR_PAINTERS={
   tree:  (g,W,H)=>drawTree(g,W,H,0),
@@ -280,6 +287,14 @@ function paintFace(big,W2,H2,p){
   vol(g,cx,hy,hr,hr*1.22,skin,{noline:1,hi:lighten(skin,40),lo:darken(skin,45)});
   // jaw shade
   g.fillStyle='rgba(60,30,16,0.18)'; g.beginPath(); g.ellipse(cx,hy+hr*0.75,hr*0.72,hr*0.4,0,0,7); g.fill();
+  // hood/scarf frame the face — draw BEFORE features, with an inner face window
+  if(p.head==='hood'||p.head==='scarf'){
+    g.fillStyle=p.hoodC||(p.head==='hood'?'#2c3a6a':'#8a5a4a');
+    g.beginPath(); g.arc(cx,hy-hr*0.1,hr*1.32,Math.PI*0.9,Math.PI*2.1);
+    g.lineTo(cx+hr*1.2,H2); g.lineTo(cx-hr*1.2,H2); g.fill();
+    vol(g,cx,hy+hr*0.06,hr*0.8,hr*0.98,skin,{noline:1,hi:lighten(skin,35),lo:darken(skin,40)});
+    g.fillStyle='rgba(10,8,16,0.35)'; g.beginPath(); g.ellipse(cx,hy-hr*0.55,hr*0.7,hr*0.32,0,0,7); g.fill();
+  }
   // eyes
   const ey=hy-hr*0.1, ex=hr*0.42;
   for(const d of [-1,1]){
@@ -311,16 +326,15 @@ function paintFace(big,W2,H2,p){
   const hairC=p.hairC||'#4a3828';
   if(p.beard){ g.fillStyle=hairC; g.beginPath(); g.moveTo(cx-hr*0.6,hy+hr*0.3); g.quadraticCurveTo(cx,hy+hr*(1.1+p.beard*0.25),cx+hr*0.6,hy+hr*0.3); g.quadraticCurveTo(cx,hy+hr*0.75,cx-hr*0.6,hy+hr*0.3); g.fill(); }
   if(p.mustache){ g.strokeStyle=hairC; g.lineWidth=5; g.beginPath(); g.moveTo(cx-hr*0.25,my-3); g.quadraticCurveTo(cx,my-8,cx+hr*0.25,my-3); g.stroke(); }
-  // hair
-  if(p.hair===1){ g.fillStyle=hairC; g.beginPath(); g.arc(cx,hy-hr*0.32,hr*0.95,Math.PI*0.95,Math.PI*2.05); g.fill(); }
-  if(p.hair===2){ g.fillStyle=hairC; g.beginPath(); g.arc(cx,hy-hr*0.25,hr*1.0,Math.PI*0.85,Math.PI*2.15); g.fill();
-    g.fillRect(cx-hr*1.0,hy-hr*0.3,hr*0.32,hr*1.5); g.fillRect(cx+hr*0.68,hy-hr*0.3,hr*0.32,hr*1.5); }
-  if(p.hair===3){ g.fillStyle=hairC; g.beginPath(); g.arc(cx,hy-hr*0.3,hr*0.9,Math.PI,Math.PI*2); g.fill(); } // receding
-  // headwear
+  // hair (skip under hood/scarf — they framed the face already)
+  if(p.head!=='hood'&&p.head!=='scarf'){
+    if(p.hair===1){ g.fillStyle=hairC; g.beginPath(); g.arc(cx,hy-hr*0.32,hr*0.95,Math.PI*0.95,Math.PI*2.05); g.fill(); }
+    if(p.hair===2){ g.fillStyle=hairC; g.beginPath(); g.arc(cx,hy-hr*0.25,hr*1.0,Math.PI*0.85,Math.PI*2.15); g.fill();
+      g.fillRect(cx-hr*1.0,hy-hr*0.3,hr*0.32,hr*1.5); g.fillRect(cx+hr*0.68,hy-hr*0.3,hr*0.32,hr*1.5); }
+    if(p.hair===3){ g.fillStyle=hairC; g.beginPath(); g.arc(cx,hy-hr*0.3,hr*0.9,Math.PI,Math.PI*2); g.fill(); } // receding
+  }
   if(p.head==='helm'){ vol(g,cx,hy-hr*0.62,hr*1.05,hr*0.62,'#7a8290',{noline:1}); g.fillStyle='#5a6270'; g.fillRect(cx-hr*1.02,hy-hr*0.45,hr*0.2,hr*0.9); g.fillRect(cx+hr*0.82,hy-hr*0.45,hr*0.2,hr*0.9); }
-  if(p.head==='hood'){ g.fillStyle=p.hoodC||'#2c3a6a'; g.beginPath(); g.arc(cx,hy-hr*0.1,hr*1.3,Math.PI*0.9,Math.PI*2.1); g.lineTo(cx+hr*1.2,H2); g.lineTo(cx-hr*1.2,H2); g.fill(); }
   if(p.head==='circlet'){ g.strokeStyle='#e8c860'; g.lineWidth=4; g.beginPath(); g.arc(cx,hy-hr*0.45,hr*0.85,Math.PI*1.05,Math.PI*1.95); g.stroke(); g.fillStyle='#e04030'; g.beginPath(); g.arc(cx,hy-hr*0.88,4,0,7); g.fill(); }
-  if(p.head==='scarf'){ g.fillStyle=p.hoodC||'#8a5a4a'; g.beginPath(); g.arc(cx,hy-hr*0.25,hr*1.05,Math.PI*0.9,Math.PI*2.1); g.fill(); g.fillRect(cx-hr*1.05,hy-hr*0.25,hr*0.24,hr*0.9); }
   // vignette
   const vg=g.createRadialGradient(cx,H2*0.45,H2*0.3,cx,H2*0.5,H2*0.75);
   vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,0.45)');
@@ -425,6 +439,15 @@ function bakePaperdolls(){
 }
 
 // ---------- bake driver ----------
+// 1px dark outline around the opaque silhouette — the pre-rendered-sprite edge
+function addOutline(tex,w,h){
+  const out=tex.slice();
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    if(tex[y*w+x]) continue;
+    if((x>0&&tex[y*w+x-1])||(x<w-1&&tex[y*w+x+1])||(y>0&&tex[(y-1)*w+x])||(y<h-1&&tex[(y+1)*w+x])) out[y*w+x]=240;
+  }
+  return out;
+}
 Art.bakeSprites=function(){
   // creatures: assert 1:1 with MONSTERS (the name→id scar)
   for(const mid in MONSTERS){
@@ -432,13 +455,17 @@ Art.bakeSprites=function(){
     if(!painter) throw new Error('no sprite painter for monster '+mid);
     const [w,h]=SPRITE_DIMS[mid]||SPRITE_DIMS.default;
     const frames={};
-    for(const f of ['idle','walk','attack','corpse']) frames[f]=bakeFromCanvas(w,h,(g,W,H)=>painter(g,W,H,f),10);
+    for(const f of ['idle','walk','attack','corpse']){
+      let t=bakeFromCanvas(w,h,(g,W,H)=>painter(g,W,H,f),10);
+      if(mid!=='ghost') t=addOutline(t,w,h);
+      frames[f]=t;
+    }
     Art.sprites[mid]={tw:w,th:h,frames};
   }
   for(const k in SPRITE_PAINTERS) if(!MONSTERS[k]) throw new Error('sprite painter without monster stats: '+k);
   for(const k in NPC_PAINTERS){
     const frames={};
-    for(const f of ['idle','walk']) frames[f]=bakeFromCanvas(64,96,(g,W,H)=>NPC_PAINTERS[k](g,W,H,f),10);
+    for(const f of ['idle','walk']) frames[f]=addOutline(bakeFromCanvas(64,96,(g,W,H)=>NPC_PAINTERS[k](g,W,H,f),10),64,96);
     Art.sprites['npc_'+k]={tw:64,th:96,frames};
   }
   for(const k in DECOR_PAINTERS){

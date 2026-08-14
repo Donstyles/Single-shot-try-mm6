@@ -155,8 +155,9 @@ const World = {
     cells[40*w+83]=0; floor[40*w+83]=1;
     map.portals.push({x:84,y:40,kind:'enter',to:'dun1'}); cells[40*w+84]=0; floor[40*w+84]=3;
     for(let y=39;y<=41;y++){cells[y*w+85]=3;} cells[40*w+85]=3;
-    map.decor.push({kind:'cryptgate',x:84.5,y:39.5});
-    map.decor.push({kind:'sign',x:82.5,y:41.5,label:'The Crypt'});
+    map.decor.push({kind:'cryptgate',x:84.5,y:39.6});
+    map.decor.push({kind:'brazier',x:82.5,y:39.5},{kind:'brazier',x:82.5,y:41.5});
+    map.decor.push({kind:'sign',x:82.5,y:42.5,label:'The Crypt'});
     // goblin camp W
     map.decor.push({kind:'campfire',x:12.5,y:36.5});
     map.decor.push({kind:'tent',x:10.5,y:34.5,solid:true},{kind:'tent',x:14.5,y:34.5,solid:true});
@@ -172,13 +173,17 @@ const World = {
     for(let y=63;y<=65;y++)for(let x=39;x<=42;x++) cells[y*w+x]=2;
     cells[64*w+39]=0; floor[64*w+39]=1; map.decor.push({kind:'sign',x:38.5,y:65.5,label:'Ranger hut'});
     // trees + rocks (deterministic scatter, keep clear of town/roads/water)
-    for(let i=0;i<520;i++){
+    for(let i=0;i<1000;i++){
       const x=r.int(4,w-5)+0.5,y=r.int(4,h-5)+0.5, ci=Math.floor(y)*w+Math.floor(x);
       if(cells[ci]||floor[ci]===1||floor[ci]===6||floor[ci]===2) continue;
       if(x>TOWN_X-2&&x<TOWN_X+40&&y>TOWN_Y-2&&y<TOWN_Y+18) continue;
-      const denseN = y<26; // north forest denser
-      if(!denseN&&r.chance(0.45)) continue;
+      const denseN = y<28; // north forest is real forest
+      if(!denseN&&r.chance(0.3)) continue;
       map.decor.push({kind:r.chance(0.85)?'tree':'rock',x,y,solid:true});
+      if(denseN&&r.chance(0.5)){ const x2=x+r.next()*2-1, y2=y+r.next()*2-1;
+        const ci2=Math.floor(y2)*w+Math.floor(x2);
+        if(!cells[ci2]&&floor[ci2]!==1&&floor[ci2]!==6) map.decor.push({kind:'tree',x:x2,y:y2,solid:true});
+      }
     }
     // signposts at gates
     map.decor.push({kind:'sign',x:gateE.x+1.5,y:gateE.y+1.5,label:'East: The Crypt. North-east: bandit camp.'});
@@ -234,7 +239,7 @@ const World = {
     };
     mk('dun1','The Crypt',DUN1_ROWS,{wallTex:5,floorId:4,chestTier:1,monsters:{a:'bat',p:'spider',k:'skeleton',z:'zombie'}},
       {up:{map:'outdoor',x:82.5,y:40.5},down:{map:'dun2',x:2.5,y:1.8}});
-    mk('dun2','The Catacombs',DUN2_ROWS,{wallTex:5,floorId:3,chestTier:2,monsters:{k:'skeleton',G:'skel_guard',z:'zombie',g:'ghost',n:'necromancer'}},
+    mk('dun2','The Catacombs',DUN2_ROWS,{wallTex:4,floorId:3,chestTier:2,monsters:{k:'skeleton',G:'skel_guard',z:'zombie',g:'ghost',n:'necromancer'}},
       {up:{map:'dun1',x:27.2,y:13.5},down:{map:'dun3',x:2.5,y:1.8}});
     mk('dun3','The Vault of Vintavia',DUN3_ROWS,{wallTex:6,floorId:5,chestTier:3,monsters:{G:'skel_guard',L:'lich'}},
       {up:{map:'dun2',x:27.5,y:13.5},down:{map:'dun2',x:27.5,y:13.5}});
@@ -247,22 +252,22 @@ const World = {
 const QUESTS = {
   main1:{name:'The Stolen Ledger', giver:'mayor',   kind:'fetchkill', item:'q_ledger', target:'bandit_boss',
     desc:'Bandits raided the counting house and took the tax ledger. Their camp lies north-east, past the east gate. Slay their captain and bring the ledger home.',
-    done:'The ledger! Vintavia is in your debt. Take this purse — and my thanks.', gold:300, xp:500},
+    done:'The ledger! Vintavia is in your debt. Take this purse — and my thanks.', gold:300, xp:800},
   main2:{name:'Silver for the Temple', giver:'priest', kind:'fetch', item:'q_censer',
     desc:'Grave-robbers dragged our silver censer into the Crypt east of town. Without it I cannot bless the harvest. Bring it back, and the Light will remember you.',
-    done:'The censer returns! Bless you, friends. Take this offering.', gold:400, xp:700, requires:null},
+    done:'The censer returns! Bless you, friends. Take this offering.', gold:400, xp:1200, requires:null},
   main3:{name:'The Vault Sigil', giver:'mayor', kind:'fetchkill', item:'q_sigil', target:'necromancer',
     desc:'You have proven yourselves. Listen: below the Crypt a necromancer digs toward the old Vault where the Crown of Vintavia sleeps. He carries the Vault Sigil. Take it from him.',
-    done:'The Sigil! Then the Vault can be opened. One task remains, heroes.', gold:800, xp:1500, requires:['main1','main2']},
+    done:'The Sigil! Then the Vault can be opened. One task remains, heroes.', gold:800, xp:2500, requires:['main1','main2']},
   main4:{name:'The Crown of Vintavia', giver:'mayor', kind:'fetch', item:'q_crown',
     desc:'The Sigil opens the sealed door on the lowest level. Beyond it waits the Lich that stole our Crown a century ago. Destroy it. Bring the Crown home, and your names outlive us all.',
-    done:'The Crown... after a hundred years. Vintavia is whole again. Hail, Heroes of Vintavia!', gold:2000, xp:5000, requires:['main3'], final:true},
+    done:'The Crown... after a hundred years. Vintavia is whole again. Hail, Heroes of Vintavia!', gold:2000, xp:8000, requires:['main3'], final:true},
   side_wolves:{name:'Wolf Cull', giver:'trainer', kind:'collect', item:'q_fang', count:3,
     desc:'Direwolves out of the north forest have taken two horses this month. Bring me three fangs and I will owe you coin and a favor.',
-    done:'Three fangs — good hunting. Here is your coin.', gold:250, xp:400},
+    done:'Three fangs — good hunting. Here is your coin.', gold:250, xp:700},
   side_goblins:{name:'Quiet Roads', giver:'tavernkeep', kind:'killgroup', group:'gobcamp', count:5,
     desc:'Goblins from the western dens rob every cart that comes down the road. Thin them out — five heads — and the Gilded Griffin will never charge your party for a bed again.',
-    done:'Five, you say? Ha! The roads breathe easier. Your beds are free, friends — forever.', gold:150, xp:300, perk:'freerest'},
+    done:'Five, you say? Ha! The roads breathe easier. Your beds are free, friends — forever.', gold:150, xp:500, perk:'freerest'},
 };
 const Quests = {
   status(party,qid){ const q=party.quests[qid]; return q?q.state:'none'; },

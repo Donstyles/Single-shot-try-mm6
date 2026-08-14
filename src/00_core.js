@@ -91,11 +91,11 @@ const Clock = {
       hhmm:(h<10?'0':'')+h+':'+(m<10?'0':'')+m,
       isNight: h<5||h>=21, isDusk: h>=19&&h<21, isDawn: h>=5&&h<7 };
   },
-  lightLevel(min){ // 0..1 ambient daylight
+  lightLevel(min){ // 0..1 ambient daylight (gentle dawn/dusk ramps)
     const h=(min%1440)/60;
-    if(h>=7&&h<19) return 1;
-    if(h>=5&&h<7) return (h-5)/2;
-    if(h>=19&&h<21) return 1-(h-19)/2;
+    if(h>=7&&h<18) return 1;
+    if(h>=5&&h<7) return 0.12+(h-5)/2*0.88;
+    if(h>=18&&h<21) return 1-(h-18)/3*0.88;
     return 0.12;
   }
 };

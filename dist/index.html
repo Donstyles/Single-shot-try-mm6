@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Vintavia — an MM6-class homage</title>
+<title>Vintavia</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -946,11 +946,15 @@ const Engine = {
     const torch=cam.torch||0;            // extra radius light indoors
     const outdoor=map.outdoor;
     const shadeAt=(d,side)=>{           // returns 0..12 darkening
-      let s=(outdoor? d*0.35 : d*(1.7-torch*0.9));
+      let s=(outdoor? d*0.22 : d*(1.7-torch*0.9));
       s+= (1-light)*(outdoor?7:3);
       if(side) s+=1.2;
       return s>12?12:s|0;
     };
+    // daylight distance haze: far geometry dissolves into sky (1998 outdoor depth cue)
+    const hazeOn=outdoor&&light>0.45;
+    const hazeIdx=palIdx(3,(9+light*4)|0);
+    const hazeLvl=d=>d>30?3:d>21?2:d>13?1:0; // 0 none, 1=25%, 2=50%, 3=75% dither to sky
     // sky / ceiling
     if(outdoor){
       const sky=Art.sky(cam.timeMin), skw=sky.w;
@@ -975,9 +979,11 @@ const Engine = {
         const stepX=rowDist*(2*planeX)/w, stepY=rowDist*(2*planeY)/w;
         let fx=posX+rowDist*(dirX-planeX), fy=posY+rowDist*(dirY-planeY);
         const sh=shadeAt(rowDist,0);
+        const hz=hazeOn&&isFloor?hazeLvl(rowDist):0;
         const row=y*w;
         for(let x=0;x<w;x++){
           const cx=fx|0, cy=fy|0;
+          if(hz&&((hz===3&&((x+y)&3)!==0)||(hz===2&&((x+y)&1))||(hz===1&&(x&1)&&(y&1)))){ fb[row+x]=hazeIdx; fx+=stepX; fy+=stepY; continue; }
           let tex;
           if(cx>=0&&cy>=0&&cx<mw&&cy<mh){
             tex=isFloor? flTexs[floorIds[cy*mw+cx]] : ceilTex; // water frames swapped in Art.tick
@@ -1030,10 +1036,12 @@ const Engine = {
       let texX=(wallX*64)|0; if((side===0&&rdX>0)||(side===1&&rdY<0)) texX=63-texX;
       const wt=Art.walls[tex];
       const sh=shadeAt(dist,side);
+      const hz=hazeOn?hazeLvl(dist):0;
       const step=64/lineH;
       let tpos=y0<0? -y0*step:0;
       const ys=Math.max(0,y0), ye=Math.min(h,y1);
       for(let y=ys;y<ye;y++){
+        if(hz&&((hz===3&&((x+y)&3)!==0)||(hz===2&&((x+y)&1))||(hz===1&&(x&1)&&(y&1)))){ fb[y*w+x]=hazeIdx; tpos+=step; continue; }
         const pi=wt[((tpos|0)&63)*64+texX]; tpos+=step;
         const s=(pi&15)-sh;
         fb[y*w+x]=(pi&240)|(s<0?0:s);
@@ -1058,11 +1066,13 @@ const Engine = {
       const tex=e.tex, tw=e.tw, th=e.th;
       const sh=shadeAt(trY,0)+(e.shade||0);
       const ghost=e.ghost;
+      const hz=hazeOn?hazeLvl(trY):0; // far sprites dissolve into the haze too
       for(let sx=Math.max(0,x0);sx<Math.min(w,x1);sx++){
         if(zb[sx]<=trY) continue;
         const texX=((sx-x0)*tw/sprW)|0;
         for(let sy=Math.max(0,y0);sy<Math.min(h,y1);sy++){
           if(ghost&&((sx+sy)&1)) continue; // dithered translucency
+          if(hz&&((hz>=2&&((sx+sy)&1))||(hz===1&&(sx&1)&&(sy&1)))) continue;
           const pi=tex[(((sy-y0)*th/sprH)|0)*tw+texX];
           if(!pi) continue;
           const s=(pi&15)-sh;
@@ -1396,6 +1406,56 @@ Art.bakeUI=function(){
   Art.ui.barTex=bakePix(8,8,(x,y)=>palIdx(0,4+(N(x/3,y/3)*3|0)));
 };
 
+// ---------- title vista (lazy-baked painted scene) ----------
+Art.title=function(){
+  if(this._title) return this._title;
+  const W=SCREEN_W,H=SCREEN_H;
+  const N=makeNoise('title',32);
+  const sky=Art.sky(20*60); // dusk
+  const ridge=x=>300+Math.sin(x*0.008+1)*22+Math.sin(x*0.031)*9+N(x/40,3)*14;
+  // keep silhouette: towers with battlements + lit windows
+  const towers=[[150,258,26],[205,215,34],[320,180,44],[430,222,30],[492,262,22]];
+  const inTower=(x,y)=>{
+    for(const [tx,ty,tw] of towers){
+      if(x>=tx-tw&&x<tx+tw&&y>=ty){
+        const bat=y<ty+8&&(((x-tx+tw)/9|0)%2===0);
+        if(y<ty+8&&!bat) continue;
+        return {ty,tx,tw};
+      }
+    }
+    if(y>340&&x>90&&x<560&&y>340+N(x/30,7)*12) return {ty:340,tx:x,tw:600}; // curtain wall
+    return null;
+  };
+  const winlit=(x,y)=>{
+    for(const [tx,ty,tw] of towers){
+      const wx=(x-tx+tw), wy=y-ty;
+      if(wx>4&&wx<tw*2-4&&wy>18&&((wx%14>5&&wx%14<9)&&(wy%26>8&&wy%26<15))) return ((tx*7+((wx/14)|0)*13+((wy/26)|0)*31)%10)<4;
+    }
+    return false;
+  };
+  this._title=bakePix(W,H,(x,y)=>{
+    const r=ridge(x);
+    const t=inTower(x,y);
+    if(t){
+      if(winlit(x,y)) return palIdx(5,10+((x+y)%3));
+      const sh=2+N(x/9,y/9)*2.2+(y-t.ty<3?1.5:0);
+      return palIdx(11,clamp(sh,1,5)|0);
+    }
+    if(y<r){ // sky
+      const sy=clamp(y/r*sky.h|0,0,sky.h-1);
+      return sky.tex[sy*sky.w+((x*1.6)|0)%sky.w];
+    }
+    if(y<r+40){ // far ridge
+      return palIdx(6,2+((y-r)/14|0)+(N(x/16,y/16)>0.6?1:0));
+    }
+    // foreground meadow + road
+    const road=Math.abs(x-320)<(y-r-40)*0.55+8;
+    if(road&&y>360) return palIdx(1,4+(N(x/6,y/6)*3|0));
+    return palIdx(13,1+clamp((y-r-40)/60,0,3)+(N(x/7,y/7)*2.5|0));
+  });
+  return this._title;
+};
+
 // carved stone button drawn directly to engine (dynamic labels)
 function drawButton(eng,x,y,w,h,label,opts){
   const down=opts&&opts.down, size=(opts&&opts.size)||11, ramp=opts&&opts.ramp!==undefined?opts.ramp:5;
@@ -1692,6 +1752,14 @@ function paintFace(big,W2,H2,p){
   vol(g,cx,hy,hr,hr*1.22,skin,{noline:1,hi:lighten(skin,40),lo:darken(skin,45)});
   // jaw shade
   g.fillStyle='rgba(60,30,16,0.18)'; g.beginPath(); g.ellipse(cx,hy+hr*0.75,hr*0.72,hr*0.4,0,0,7); g.fill();
+  // hood/scarf frame the face — draw BEFORE features, with an inner face window
+  if(p.head==='hood'||p.head==='scarf'){
+    g.fillStyle=p.hoodC||(p.head==='hood'?'#2c3a6a':'#8a5a4a');
+    g.beginPath(); g.arc(cx,hy-hr*0.1,hr*1.32,Math.PI*0.9,Math.PI*2.1);
+    g.lineTo(cx+hr*1.2,H2); g.lineTo(cx-hr*1.2,H2); g.fill();
+    vol(g,cx,hy+hr*0.06,hr*0.8,hr*0.98,skin,{noline:1,hi:lighten(skin,35),lo:darken(skin,40)});
+    g.fillStyle='rgba(10,8,16,0.35)'; g.beginPath(); g.ellipse(cx,hy-hr*0.55,hr*0.7,hr*0.32,0,0,7); g.fill();
+  }
   // eyes
   const ey=hy-hr*0.1, ex=hr*0.42;
   for(const d of [-1,1]){
@@ -1723,16 +1791,15 @@ function paintFace(big,W2,H2,p){
   const hairC=p.hairC||'#4a3828';
   if(p.beard){ g.fillStyle=hairC; g.beginPath(); g.moveTo(cx-hr*0.6,hy+hr*0.3); g.quadraticCurveTo(cx,hy+hr*(1.1+p.beard*0.25),cx+hr*0.6,hy+hr*0.3); g.quadraticCurveTo(cx,hy+hr*0.75,cx-hr*0.6,hy+hr*0.3); g.fill(); }
   if(p.mustache){ g.strokeStyle=hairC; g.lineWidth=5; g.beginPath(); g.moveTo(cx-hr*0.25,my-3); g.quadraticCurveTo(cx,my-8,cx+hr*0.25,my-3); g.stroke(); }
-  // hair
-  if(p.hair===1){ g.fillStyle=hairC; g.beginPath(); g.arc(cx,hy-hr*0.32,hr*0.95,Math.PI*0.95,Math.PI*2.05); g.fill(); }
-  if(p.hair===2){ g.fillStyle=hairC; g.beginPath(); g.arc(cx,hy-hr*0.25,hr*1.0,Math.PI*0.85,Math.PI*2.15); g.fill();
-    g.fillRect(cx-hr*1.0,hy-hr*0.3,hr*0.32,hr*1.5); g.fillRect(cx+hr*0.68,hy-hr*0.3,hr*0.32,hr*1.5); }
-  if(p.hair===3){ g.fillStyle=hairC; g.beginPath(); g.arc(cx,hy-hr*0.3,hr*0.9,Math.PI,Math.PI*2); g.fill(); } // receding
-  // headwear
+  // hair (skip under hood/scarf — they framed the face already)
+  if(p.head!=='hood'&&p.head!=='scarf'){
+    if(p.hair===1){ g.fillStyle=hairC; g.beginPath(); g.arc(cx,hy-hr*0.32,hr*0.95,Math.PI*0.95,Math.PI*2.05); g.fill(); }
+    if(p.hair===2){ g.fillStyle=hairC; g.beginPath(); g.arc(cx,hy-hr*0.25,hr*1.0,Math.PI*0.85,Math.PI*2.15); g.fill();
+      g.fillRect(cx-hr*1.0,hy-hr*0.3,hr*0.32,hr*1.5); g.fillRect(cx+hr*0.68,hy-hr*0.3,hr*0.32,hr*1.5); }
+    if(p.hair===3){ g.fillStyle=hairC; g.beginPath(); g.arc(cx,hy-hr*0.3,hr*0.9,Math.PI,Math.PI*2); g.fill(); } // receding
+  }
   if(p.head==='helm'){ vol(g,cx,hy-hr*0.62,hr*1.05,hr*0.62,'#7a8290',{noline:1}); g.fillStyle='#5a6270'; g.fillRect(cx-hr*1.02,hy-hr*0.45,hr*0.2,hr*0.9); g.fillRect(cx+hr*0.82,hy-hr*0.45,hr*0.2,hr*0.9); }
-  if(p.head==='hood'){ g.fillStyle=p.hoodC||'#2c3a6a'; g.beginPath(); g.arc(cx,hy-hr*0.1,hr*1.3,Math.PI*0.9,Math.PI*2.1); g.lineTo(cx+hr*1.2,H2); g.lineTo(cx-hr*1.2,H2); g.fill(); }
   if(p.head==='circlet'){ g.strokeStyle='#e8c860'; g.lineWidth=4; g.beginPath(); g.arc(cx,hy-hr*0.45,hr*0.85,Math.PI*1.05,Math.PI*1.95); g.stroke(); g.fillStyle='#e04030'; g.beginPath(); g.arc(cx,hy-hr*0.88,4,0,7); g.fill(); }
-  if(p.head==='scarf'){ g.fillStyle=p.hoodC||'#8a5a4a'; g.beginPath(); g.arc(cx,hy-hr*0.25,hr*1.05,Math.PI*0.9,Math.PI*2.1); g.fill(); g.fillRect(cx-hr*1.05,hy-hr*0.25,hr*0.24,hr*0.9); }
   // vignette
   const vg=g.createRadialGradient(cx,H2*0.45,H2*0.3,cx,H2*0.5,H2*0.75);
   vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,0.45)');
@@ -2003,6 +2070,7 @@ const Audio2 = {
           if(i%2===0&&r.chance(0.5)) this.pluck(n(root,sc,deg+2,0),t+i*(bl/4)+bl/8,0.045,g,0.3);
         }
         if(bar%4===3) this.bell(n(root,sc,7,1),t+bl*0.5,0.04,g);
+        if(r.chance(0.3)){ const f=r.int(1900,2700); this.pluck(f,t+r.next()*bl*0.7,0.018,g,0.08); this.pluck(f*1.2,t+r.next()*bl*0.7+0.09,0.014,g,0.07); } // birdsong
         return bl;
       }
       case 'wild':{
@@ -2011,6 +2079,7 @@ const Audio2 = {
         this.pad(n(root,min,[0,5,3,4][bar%4],1),t,bl,0.045,g);
         if(r.chance(0.5)) this.pluck(n(root,min,r.int(0,6),2),t+r.next()*bl*0.6,0.04,g,0.7);
         if(bar%2===0) this.bell(n(root,min,[0,4][bar%4===0?0:1],2),t+0.3,0.03,g);
+        if(r.chance(0.35)){ const f=r.int(2000,2900); this.pluck(f,t+r.next()*bl*0.8,0.014,g,0.07); } // distant bird
         return bl;
       }
       case 'dungeon':{
@@ -2019,6 +2088,7 @@ const Audio2 = {
         if(bar%2===0) this.bell(n(root,min,[0,1,4,1][(bar/2)%4],2),t+0.4,0.045,g);
         if(r.chance(0.35)) this.noise(t+r.next()*bl*0.7,0.5,0.012,g,300,true);
         if(bar%4===2) this.pluck(n(root,min,1,1),t+bl*0.6,0.05,g,1.2);
+        if(r.chance(0.4)){ this.bell(r.int(3200,4200),t+r.next()*bl*0.8,0.012,g); } // water drip echo
         return bl;
       }
       case 'combat':{
@@ -2126,11 +2196,17 @@ const UI = {
     E.textC('Gold: '+P.gold,rx+rw/2,by+6,{size:11,ramp:5,bright:true});
     if(Game.turnBased) E.textC('— your move —',rx+rw/2,by+22,{size:9,ramp:4});
     // ---- bottom: log + portraits ----
-    const ly=330;
-    for(let i=Math.max(0,Log.lines.length-7),n=0;i<Log.lines.length;i++,n++){
-      const l=Log.lines[i];
-      E.text(l.text.slice(0,44),12,ly+4+n*13,{size:9,ramp:(l.color>>4)&15});
+    const ly=330, logW=222;
+    const rows=[];
+    for(let i=Math.max(0,Log.lines.length-6);i<Log.lines.length;i++){
+      const l=Log.lines[i]; let line='';
+      for(const wd of l.text.split(' ')){
+        if(line&&E.textW(line+wd,9)>logW){ rows.push({t:line,c:l.color}); line=''; }
+        line+=wd+' ';
+      }
+      rows.push({t:line,c:l.color});
     }
+    rows.slice(-8).forEach((r,n)=>E.text(r.t,12,ly+2+n*12,{size:9,ramp:(r.c>>4)&15}));
     // portraits
     const px0=240;
     for(let i=0;i<4;i++){
@@ -2189,19 +2265,7 @@ const UI = {
     return { name:'title',
       draw(){
         const E=Engine;
-        // painted title backdrop: dusk sky + keep silhouette
-        const sky=Art.sky(20*60);
-        for(let y=0;y<SCREEN_H;y++){ const sy=(y/SCREEN_H*sky.h)|0;
-          for(let x=0;x<SCREEN_W;x++) E.buf[y*SCREEN_W+x]=PAL32[sky.tex[sy*sky.w+((x*1.6)|0)%sky.w]];
-        }
-        // silhouette town
-        for(let x=0;x<SCREEN_W;x++){
-          const n=Math.sin(x*0.02)*14+Math.sin(x*0.11)*6;
-          let hgt=330+n;
-          if(x>200&&x<250) hgt=250; if(x>380&&x<430) hgt=235; if(x>390&&x<420) hgt=215;
-          if(x>150&&x<170) hgt=290; if(x>460&&x<480) hgt=285;
-          for(let y=hgt|0;y<SCREEN_H;y++) E.buf[y*SCREEN_W+x]=PAL32[palIdx(11,y<340?1:2)];
-        }
+        E.blit(Art.title(),SCREEN_W,SCREEN_H,0,0);
         E.textC('VINTAVIA',SCREEN_W/2+2,92,{size:22,ramp:15,shadow:true});
         E.textC('VINTAVIA',SCREEN_W/2,90,{size:22,ramp:5,bright:true});
         E.textC('A Might and Magic VI — class homage',SCREEN_W/2,126,{size:11,ramp:1,bright:true});

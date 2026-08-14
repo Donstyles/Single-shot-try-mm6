@@ -80,11 +80,11 @@ Art.bakeTextures=function(){
     const b=brickPat(x,y,16,8,1.6), n=N(x/4,y/4);
     return palIdx(11,1+b*(4+n*5)|0);
   });
-  // 5: crypt stone — pale, bone inlay
+  // 5: crypt stone — pale ashlar, subtle bone inlay
   Art.walls[5]=bakePix(64,64,(x,y)=>{
     const b=brickPat(x,y,32,13,2), n=N(x/5,y/5);
-    const bone=(y%13>4&&y%13<8)&&N2(x/3,17)>0.72;
-    if(bone&&b>0.5) return palIdx(9,11+(x%2));
+    const bone=(y%13>4&&y%13<8)&&N2(x/3,17)>0.8;
+    if(bone&&b>0.6) return palIdx(0,9+(x%2));
     return palIdx(0,2+b*(3+n*5)|0);
   });
   // 6: vault marble — dark green-black with gold veins
@@ -152,11 +152,12 @@ Art.bakeTextures=function(){
     const b=brickPat(x,y,21,21,1.6), crack=N2(x/2,y/2)>0.87;
     return palIdx(0,crack?1:2+b*(3+N(x/6,y/6)*4)|0);
   });
-  Art.floors[5]=bakePix(64,64,(x,y)=>{ // vault marble
+  Art.floors[5]=bakePix(64,64,(x,y)=>{ // vault marble floor: pale slabs, gold trim
+    if(x%32<2||y%32<2) return palIdx(5,7+((x+y)%2)); // gold seams
     const v=Math.abs(N(x/9,y/16)-0.5)<0.025;
     const b=brickPat(x,y,32,32,1.5);
-    if(v&&b>0.3) return palIdx(5,9);
-    return palIdx(13,2+(b*3+N2(x/6,y/6)*2|0));
+    if(v&&b>0.3) return palIdx(8,8);
+    return palIdx(0,4+(b*4+N2(x/6,y/6)*2|0));
   });
   // water (2 frames, swapped by Art.tick)
   const wat=(ph)=>bakePix(64,64,(x,y)=>{
@@ -168,8 +169,16 @@ Art.bakeTextures=function(){
   Art._water[0]=wat(0); Art._water[1]=wat(1.5);
   Art.floors[6]=Art._water[0];
   Art.floors[7]=bakePix(64,64,(x,y)=>palIdx(5,9+(N(x/4,y/4)*3|0))); // sand
-  // ceilings
+  // ceilings — one identity per dungeon level
   Art.ceilings.default=bakePix(64,64,(x,y)=>palIdx(11,2+(N(x/6,y/6)*3|0)));
+  Art.ceilings.dun1=bakePix(64,64,(x,y)=>{ // crypt: pale vaulted ribs
+    const rib=(x%32<3)||(y%32<3);
+    return palIdx(0,(rib?4:2)+(N(x/6,y/6)*2|0));
+  });
+  Art.ceilings.dun2=bakePix(64,64,(x,y)=>{ // catacombs: rough dark brick
+    const b=brickPat(x,y,16,8,1.4);
+    return palIdx(11,(b*3+N(x/4,y/4)*2|0));
+  });
   Art.ceilings.dun3=bakePix(64,64,(x,y)=>{
     const v=Math.abs(N(x/9,y/16)-0.5)<0.02;
     return v?palIdx(5,7):palIdx(13,1+(N2(x/5,y/5)*2|0));
@@ -204,10 +213,13 @@ Art.sky=function(timeMin){
     const d=Math.hypot(dx,dy);
     if(isNight){ if(d<9&&!(Math.hypot(dx-4,dy-2)<7)) {R=230;G=230;B=215;} }
     else if(d<11){R=255;G=245;B=200;} else if(d<26){R=lerp(R,255,(26-d)/17*0.5);G=lerp(G,240,(26-d)/17*0.4);}
+    const warm=bucket==='dawn'||bucket==='dusk';
     for(const [cx,cy,cw,ch,op] of clouds){
       let ddx=Math.min(Math.abs(x-cx),w-Math.abs(x-cx))/cw, ddy=(y-cy)/ch;
       const cd=ddx*ddx+ddy*ddy;
-      if(cd<1){ const k=(1-cd)*op; const cl=isNight?60:245; R=lerp(R,cl,k);G=lerp(G,cl,k);B=lerp(B,isNight?70:250,k*0.9); }
+      if(cd<1){ const k=(1-cd)*op;
+        const cr=isNight?55:warm?250:245, cg=isNight?58:warm?185:243, cb=isNight?72:warm?135:250;
+        R=lerp(R,cr,k);G=lerp(G,cg,k);B=lerp(B,cb,k*0.9); }
     }
     for(const [px,py,s] of stars){ if(Math.abs(x-px)<s&&Math.abs(y-py)<s){R=240;G=240;B=220;} }
     return palDither(R,G,B,x,y,10);
@@ -221,11 +233,12 @@ Art.bakeFont=function(){
   const font={sizes:{},draw:null,width:null};
   const cnv=document.createElement('canvas'); cnv.width=48; cnv.height=48;
   const g=cnv.getContext('2d',{willReadFrequently:true});
+  const EXTRA='’‘“”—–◆✓►◄−×…é';
   for(const sz of sizes){
     const glyphs={};
     g.font='bold '+sz+'px Georgia, "Times New Roman", serif';
-    for(let c=32;c<127;c++){
-      const ch=String.fromCharCode(c);
+    const chars=[]; for(let c=32;c<127;c++) chars.push(String.fromCharCode(c)); for(const ch of EXTRA) chars.push(ch);
+    for(const ch of chars){
       const met=g.measureText(ch);
       const gw=Math.max(1,Math.ceil(met.width)), gh=sz+4;
       g.clearRect(0,0,48,48);
@@ -241,12 +254,13 @@ Art.bakeFont=function(){
     font.sizes[sz]=glyphs;
   }
   font.width=(str,size)=>{ const gs=font.sizes[size]||font.sizes[11]; let w=0; for(const ch of str){ const gl=gs[ch]||gs['?']; w+=gl.adv; } return w; };
+  const FALLBACK={'’':"'",'‘':"'",'“':'"','”':'"','—':'-','–':'-','−':'-','…':'...'};
   font.draw=(eng,str,x,y,opts)=>{
     const size=opts.size||11, ramp=opts.ramp===undefined?5:opts.ramp, gs=font.sizes[size]||font.sizes[11];
     const shades=opts.bright? [0,9,12,15]:[0,7,10,13];
     let cx=x|0;
     for(const ch of str){
-      const gl=gs[ch]||gs['?']; if(!gl){cx+=4;continue;}
+      const gl=gs[ch]||gs[FALLBACK[ch]]||gs['?']; if(!gl){cx+=4;continue;}
       for(let gy=0;gy<gl.h;gy++)for(let gx=0;gx<gl.w;gx++){
         const lv=gl.data[gy*gl.w+gx]; if(!lv) continue;
         const sx=cx+gx, sy=(y|0)+gy;
@@ -296,6 +310,56 @@ Art.bakeUI=function(){
     return 0;
   });
   Art.ui.barTex=bakePix(8,8,(x,y)=>palIdx(0,4+(N(x/3,y/3)*3|0)));
+};
+
+// ---------- title vista (lazy-baked painted scene) ----------
+Art.title=function(){
+  if(this._title) return this._title;
+  const W=SCREEN_W,H=SCREEN_H;
+  const N=makeNoise('title',32);
+  const sky=Art.sky(20*60); // dusk
+  const ridge=x=>300+Math.sin(x*0.008+1)*22+Math.sin(x*0.031)*9+N(x/40,3)*14;
+  // keep silhouette: towers with battlements + lit windows
+  const towers=[[150,258,26],[205,215,34],[320,180,44],[430,222,30],[492,262,22]];
+  const inTower=(x,y)=>{
+    for(const [tx,ty,tw] of towers){
+      if(x>=tx-tw&&x<tx+tw&&y>=ty){
+        const bat=y<ty+8&&(((x-tx+tw)/9|0)%2===0);
+        if(y<ty+8&&!bat) continue;
+        return {ty,tx,tw};
+      }
+    }
+    if(y>340&&x>90&&x<560&&y>340+N(x/30,7)*12) return {ty:340,tx:x,tw:600}; // curtain wall
+    return null;
+  };
+  const winlit=(x,y)=>{
+    for(const [tx,ty,tw] of towers){
+      const wx=(x-tx+tw), wy=y-ty;
+      if(wx>4&&wx<tw*2-4&&wy>18&&((wx%14>5&&wx%14<9)&&(wy%26>8&&wy%26<15))) return ((tx*7+((wx/14)|0)*13+((wy/26)|0)*31)%10)<4;
+    }
+    return false;
+  };
+  this._title=bakePix(W,H,(x,y)=>{
+    const r=ridge(x);
+    const t=inTower(x,y);
+    if(t){
+      if(winlit(x,y)) return palIdx(5,10+((x+y)%3));
+      const sh=2+N(x/9,y/9)*2.2+(y-t.ty<3?1.5:0);
+      return palIdx(11,clamp(sh,1,5)|0);
+    }
+    if(y<r){ // sky
+      const sy=clamp(y/r*sky.h|0,0,sky.h-1);
+      return sky.tex[sy*sky.w+((x*1.6)|0)%sky.w];
+    }
+    if(y<r+40){ // far ridge
+      return palIdx(6,2+((y-r)/14|0)+(N(x/16,y/16)>0.6?1:0));
+    }
+    // foreground meadow + road
+    const road=Math.abs(x-320)<(y-r-40)*0.55+8;
+    if(road&&y>360) return palIdx(1,4+(N(x/6,y/6)*3|0));
+    return palIdx(13,1+clamp((y-r-40)/60,0,3)+(N(x/7,y/7)*2.5|0));
+  });
+  return this._title;
 };
 
 // carved stone button drawn directly to engine (dynamic labels)

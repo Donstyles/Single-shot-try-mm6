@@ -92,11 +92,19 @@ const Engine = {
     const torch=cam.torch||0;            // extra radius light indoors
     const outdoor=map.outdoor;
     const shadeAt=(d,side)=>{           // returns 0..12 darkening
-      let s=(outdoor? d*0.35 : d*(1.7-torch*0.9));
+      let s=(outdoor? Math.min(d*0.22,5.0) : d*(1.7-torch*0.9)); // day never fades to black — haze handles distance
       s+= (1-light)*(outdoor?7:3);
       if(side) s+=1.2;
       return s>12?12:s|0;
     };
+    // distance haze: far geometry dissolves into the sky (1998 outdoor depth cue)
+    const hh=((cam.timeMin%1440)/60);
+    const warmHour=(hh>=4.8&&hh<7.5)||(hh>=18.5&&hh<21);
+    const hazeOn=outdoor&&light>0.25;
+    const hazeIdx=warmHour? palIdx(12,(5+light*5)|0) : palIdx(3,(9+light*4)|0);
+    const hazeLvl=d=>d>28?3:d>19?2:d>12?1:0; // 0 none, 1=25%, 2=50%, 3=75% dither to sky
+    const HZT=[0,4,8,12]; // Bayer thresholds per haze level (ordered dither, no hatch artifacts)
+    const cellJit=(cx,cy)=>((cx*97+cy*57)&63); // per-cell texture offset kills tiling
     // sky / ceiling
     if(outdoor){
       const sky=Art.sky(cam.timeMin), skw=sky.w;
@@ -121,14 +129,17 @@ const Engine = {
         const stepX=rowDist*(2*planeX)/w, stepY=rowDist*(2*planeY)/w;
         let fx=posX+rowDist*(dirX-planeX), fy=posY+rowDist*(dirY-planeY);
         const sh=shadeAt(rowDist,0);
+        const hz=hazeOn&&isFloor?hazeLvl(rowDist):0;
         const row=y*w;
         for(let x=0;x<w;x++){
           const cx=fx|0, cy=fy|0;
+          if(hz&&BAYER4[((y&3)<<2)|(x&3)]<HZT[hz]){ fb[row+x]=hazeIdx; fx+=stepX; fy+=stepY; continue; }
           let tex;
           if(cx>=0&&cy>=0&&cx<mw&&cy<mh){
             tex=isFloor? flTexs[floorIds[cy*mw+cx]] : ceilTex; // water frames swapped in Art.tick
           } else tex=isFloor?flTexs[0]:ceilTex;
-          const tx=((fx-cx)*64)|0, ty=((fy-cy)*64)|0;
+          const jit=cellJit(cx,cy);
+          const tx=((((fx-cx)*64)|0)+jit)&63, ty=((((fy-cy)*64)|0)+(jit>>1))&63;
           let pi=tex[ty*64+tx];
           const s=(pi&15)-sh; fb[row+x]=(pi&240)|(s<0?0:s);
           fx+=stepX; fy+=stepY;
@@ -174,12 +185,15 @@ const Engine = {
       let y0=horizon-(lineH>>1), y1=y0+lineH;
       if(wallX===0){ const hx=posX+rdX*dist, hy=posY+rdY*dist; wallX=side? hx-(hx|0): hy-(hy|0); }
       let texX=(wallX*64)|0; if((side===0&&rdX>0)||(side===1&&rdY<0)) texX=63-texX;
+      if(tex!==7&&tex!==8&&tex!==9) texX=(texX+cellJit(mapX,mapY))&63; // vary repeats (not doors/shopfronts)
       const wt=Art.walls[tex];
       const sh=shadeAt(dist,side);
+      const hz=hazeOn?hazeLvl(dist):0;
       const step=64/lineH;
       let tpos=y0<0? -y0*step:0;
       const ys=Math.max(0,y0), ye=Math.min(h,y1);
       for(let y=ys;y<ye;y++){
+        if(hz&&BAYER4[((y&3)<<2)|(x&3)]<HZT[hz]){ fb[y*w+x]=hazeIdx; tpos+=step; continue; }
         const pi=wt[((tpos|0)&63)*64+texX]; tpos+=step;
         const s=(pi&15)-sh;
         fb[y*w+x]=(pi&240)|(s<0?0:s);
@@ -204,11 +218,13 @@ const Engine = {
       const tex=e.tex, tw=e.tw, th=e.th;
       const sh=shadeAt(trY,0)+(e.shade||0);
       const ghost=e.ghost;
+      const hz=hazeOn?hazeLvl(trY):0; // far sprites dissolve into the haze too
       for(let sx=Math.max(0,x0);sx<Math.min(w,x1);sx++){
         if(zb[sx]<=trY) continue;
         const texX=((sx-x0)*tw/sprW)|0;
         for(let sy=Math.max(0,y0);sy<Math.min(h,y1);sy++){
           if(ghost&&((sx+sy)&1)) continue; // dithered translucency
+          if(hz&&BAYER4[((sy&3)<<2)|(sx&3)]<HZT[hz]) continue;
           const pi=tex[(((sy-y0)*th/sprH)|0)*tw+texX];
           if(!pi) continue;
           const s=(pi&15)-sh;

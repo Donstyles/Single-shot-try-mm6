@@ -13,6 +13,14 @@ const UI = {
   tap(gx,gy){
     for(let i=this.hit.length-1;i>=0;i--){ const r=this.hit[i];
       if(gx>=r.x&&gx<r.x+r.w&&gy>=r.y&&gy<r.y+r.h){ r.cb(gx-r.x,gy-r.y); return true; } }
+    // fat-finger pass: nearest target within 7px of its edge (small targets on phone scale)
+    let best=null,bd=1e9;
+    for(let i=this.hit.length-1;i>=0;i--){ const r=this.hit[i];
+      if(r.w>200||r.h>200) continue; // don't magnetize huge zones like the viewport
+      const dx=Math.max(r.x-gx,0,gx-(r.x+r.w)), dy=Math.max(r.y-gy,0,gy-(r.y+r.h));
+      const d=dx*dx+dy*dy;
+      if(dx<=7&&dy<=7&&d<bd){ bd=d; best=r; } }
+    if(best){ best.cb(gx-best.x,gy-best.y); return true; }
     return false;
   },
   say(text){ this.toast=text; this.toastT=performance.now(); },
@@ -33,7 +41,7 @@ const UI = {
     const dirs=['E','SE','S','SW','W','NW','N','NE'];
     const di=Math.round(((Game.ang%(2*Math.PI))+2*Math.PI)%(2*Math.PI)/(Math.PI/4))%8;
     E.textC('Facing '+dirs[di],rx+rw/2,62,{size:9,ramp:1});
-    let by=78; const bh=26, bw=rw-4;
+    let by=76; const bh=28, bw=rw-4;
     this.btn(rx,by,bw,bh,'Quests (Q)',()=>UI.open(UI.questScreen())); by+=bh+4;
     this.btn(rx,by,bw,bh,'Spells (B)',()=>UI.open(UI.spellScreen(Game.activePc))); by+=bh+4;
     this.btn(rx,by,bw,bh,'Map (M)',()=>UI.open(UI.mapScreen())); by+=bh+4;
@@ -43,11 +51,17 @@ const UI = {
     E.textC('Gold: '+P.gold,rx+rw/2,by+6,{size:11,ramp:5,bright:true});
     if(Game.turnBased) E.textC('— your move —',rx+rw/2,by+22,{size:9,ramp:4});
     // ---- bottom: log + portraits ----
-    const ly=330;
-    for(let i=Math.max(0,Log.lines.length-7),n=0;i<Log.lines.length;i++,n++){
-      const l=Log.lines[i];
-      E.text(l.text.slice(0,44),12,ly+4+n*13,{size:9,ramp:(l.color>>4)&15});
+    const ly=330, logW=222;
+    const rows=[];
+    for(let i=Math.max(0,Log.lines.length-6);i<Log.lines.length;i++){
+      const l=Log.lines[i]; let line='';
+      for(const wd of l.text.split(' ')){
+        if(line&&E.textW(line+wd,9)>logW){ rows.push({t:line,c:l.color}); line=''; }
+        line+=wd+' ';
+      }
+      rows.push({t:line,c:l.color});
     }
+    rows.slice(-8).forEach((r,n)=>E.text(r.t,12,ly+2+n*12,{size:9,ramp:(r.c>>4)&15}));
     // portraits
     const px0=240;
     for(let i=0;i<4;i++){
@@ -69,12 +83,14 @@ const UI = {
       E.textC(pc.name,x+31,y+72,{size:9,ramp:sel?5:0,bright:sel});
       // recovery flash
       if(pc.recovery>0&&pc.cond==='ok'){ E.fillRect(x,y+68,Math.round(62*clamp(pc.recovery/1500,0,1)),2,palIdx(12,8)); }
-      this.tapRect(x,y,80,82,()=>{ Game.activePc=i; Audio2.sfx('click'); });
+      // tap selects; tapping the already-selected hero opens their pack (touch path to inventory)
+      this.tapRect(x,y,80,82,()=>{ if(Game.activePc===i) UI.open(UI.invScreen(i)); else { Game.activePc=i; Audio2.sfx('click'); } });
     }
-    // attack / cast / use buttons (also touch)
-    this.btn(12,436,70,32,'Attack (F)',()=>Game.partyAttack());
-    this.btn(88,436,70,32,'Cast (C)',()=>Game.quickCast());
-    this.btn(164,436,64,32,'Use (Spc)',()=>Game.interact());
+    // attack / cast / use / pack buttons (also touch)
+    this.btn(12,434,66,36,'Attack (F)',()=>Game.partyAttack());
+    this.btn(82,434,60,36,'Cast (C)',()=>Game.quickCast());
+    this.btn(146,434,56,36,'Use (Spc)',()=>Game.interact());
+    this.btn(206,434,56,36,'Pack (I)',()=>UI.open(UI.invScreen()));
     // target + crosshair
     E.px(VP.x+VP.w/2|0,VP.y+VP.h/2|0,palIdx(5,15));
     const t=Game.currentTarget();
@@ -106,19 +122,7 @@ const UI = {
     return { name:'title',
       draw(){
         const E=Engine;
-        // painted title backdrop: dusk sky + keep silhouette
-        const sky=Art.sky(20*60);
-        for(let y=0;y<SCREEN_H;y++){ const sy=(y/SCREEN_H*sky.h)|0;
-          for(let x=0;x<SCREEN_W;x++) E.buf[y*SCREEN_W+x]=PAL32[sky.tex[sy*sky.w+((x*1.6)|0)%sky.w]];
-        }
-        // silhouette town
-        for(let x=0;x<SCREEN_W;x++){
-          const n=Math.sin(x*0.02)*14+Math.sin(x*0.11)*6;
-          let hgt=330+n;
-          if(x>200&&x<250) hgt=250; if(x>380&&x<430) hgt=235; if(x>390&&x<420) hgt=215;
-          if(x>150&&x<170) hgt=290; if(x>460&&x<480) hgt=285;
-          for(let y=hgt|0;y<SCREEN_H;y++) E.buf[y*SCREEN_W+x]=PAL32[palIdx(11,y<340?1:2)];
-        }
+        E.blit(Art.title(),SCREEN_W,SCREEN_H,0,0);
         E.textC('VINTAVIA',SCREEN_W/2+2,92,{size:22,ramp:15,shadow:true});
         E.textC('VINTAVIA',SCREEN_W/2,90,{size:22,ramp:5,bright:true});
         E.textC('A Might and Magic VI — class homage',SCREEN_W/2,126,{size:11,ramp:1,bright:true});
@@ -167,8 +171,8 @@ const UI = {
           const y=120+ai*24;
           E.text(a[0].toUpperCase()+a.slice(1),300,y+4,{size:9,ramp:0});
           E.text(''+d.stats[a],394,y+4,{size:11,ramp:15});
-          UI.btn(420,y,22,20,'−',()=>{ if(Rules.canLower(d.cls,d,a)){ d.stats[a]--; d.pool+=Rules.pointCost(d.stats[a]); } },{size:11});
-          UI.btn(446,y,22,20,'+',()=>{ const c=Rules.pointCost(d.stats[a]); if(d.stats[a]<Rules.STAT_MAX&&d.pool>=c){ d.stats[a]++; d.pool-=c; } },{size:11});
+          UI.btn(414,y-1,28,22,'−',()=>{ if(Rules.canLower(d.cls,d,a)){ d.stats[a]--; d.pool+=Rules.pointCost(d.stats[a]); } },{size:11});
+          UI.btn(448,y-1,28,22,'+',()=>{ const c=Rules.pointCost(d.stats[a]); if(d.stats[a]<Rules.STAT_MAX&&d.pool>=c){ d.stats[a]++; d.pool-=c; } },{size:11});
         });
         // class info
         const cl=CLASSES[d.cls];

@@ -123,6 +123,7 @@ const Audio2 = {
           if(i%2===0&&r.chance(0.5)) this.pluck(n(root,sc,deg+2,0),t+i*(bl/4)+bl/8,0.045,g,0.3);
         }
         if(bar%4===3) this.bell(n(root,sc,7,1),t+bl*0.5,0.04,g);
+        if(r.chance(0.3)){ const f=r.int(1900,2700); this.pluck(f,t+r.next()*bl*0.7,0.018,g,0.08); this.pluck(f*1.2,t+r.next()*bl*0.7+0.09,0.014,g,0.07); } // birdsong
         return bl;
       }
       case 'wild':{
@@ -131,6 +132,7 @@ const Audio2 = {
         this.pad(n(root,min,[0,5,3,4][bar%4],1),t,bl,0.045,g);
         if(r.chance(0.5)) this.pluck(n(root,min,r.int(0,6),2),t+r.next()*bl*0.6,0.04,g,0.7);
         if(bar%2===0) this.bell(n(root,min,[0,4][bar%4===0?0:1],2),t+0.3,0.03,g);
+        if(r.chance(0.35)){ const f=r.int(2000,2900); this.pluck(f,t+r.next()*bl*0.8,0.014,g,0.07); } // distant bird
         return bl;
       }
       case 'dungeon':{
@@ -139,6 +141,7 @@ const Audio2 = {
         if(bar%2===0) this.bell(n(root,min,[0,1,4,1][(bar/2)%4],2),t+0.4,0.045,g);
         if(r.chance(0.35)) this.noise(t+r.next()*bl*0.7,0.5,0.012,g,300,true);
         if(bar%4===2) this.pluck(n(root,min,1,1),t+bl*0.6,0.05,g,1.2);
+        if(r.chance(0.4)){ this.bell(r.int(3200,4200),t+r.next()*bl*0.8,0.012,g); } // water drip echo
         return bl;
       }
       case 'combat':{

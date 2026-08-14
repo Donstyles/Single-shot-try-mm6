@@ -52,7 +52,10 @@ const Debug = {
       'audio: '+(Audio2.started?('running, state '+Audio2.ctx.state):'not started'),
       'storage: '+(function(){try{localStorage.setItem('_t','1');localStorage.removeItem('_t');return 'ok';}catch(e){return 'BLOCKED: '+e.name;}})(),
       'game state: '+Game.state+'  map: '+Game.mapId+'  pos: '+(Game.px||0).toFixed(1)+','+(Game.py||0).toFixed(1),
-      'safe-area: '+getComputedStyle(document.documentElement).getPropertyValue('--sat'),
+      'safe-area L/R/B: '+(function(){ const d=document.createElement('div');
+        d.style.cssText='position:fixed;padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);padding-bottom:env(safe-area-inset-bottom,0px);visibility:hidden';
+        document.body.appendChild(d); const cs=getComputedStyle(d);
+        const v=cs.paddingLeft+' / '+cs.paddingRight+' / '+cs.paddingBottom; d.remove(); return v; })(),
       'errors: '+(this.errors.length?'\n'+this.errors.join('\n'):'none'),
     ];
     return lines.join('\n');
@@ -113,7 +116,7 @@ window.__game={
   tap(x,y){ Game.tapAt(x,y); },
   save(slot){ return Game.save(slot||'manual'); },
   load(slot){ return Game.load(slot||'manual'); },
-  give(id){ return Game.giveItem(Items.make(id)); },
+  give(id){ const ok=Game.giveItem(Items.make(id)); Game.onQuestItemsChanged(); return ok; },
   gold(n){ Game.party.gold+=n; return Game.party.gold; },
   step(ms){ Game.update(Math.min(1000,ms||100)); },
   acceptQuest(q){ Game.acceptQuest(q); },

@@ -90,14 +90,16 @@ const Game = {
     cv.addEventListener('touchstart',down,{passive:false}); cv.addEventListener('touchmove',move,{passive:false}); addEventListener('touchend',up,{passive:false});
     this.initTouchPads();
   },
+  _pads:[],
+  padVisibility(on){ for(const p of this._pads) p.style.display=on?'':'none'; },
   initTouchPads(){
     if(!('ontouchstart' in window)) return;
     const mk=(css)=>{ const d=document.createElement('div'); Object.assign(d.style,{position:'fixed',zIndex:10,userSelect:'none',webkitUserSelect:'none',touchAction:'none',
       fontFamily:'Georgia,serif',color:'#d8c890',textAlign:'center',
       background:'radial-gradient(circle at 35% 30%, #5a564e, #37342e 70%)',border:'2px solid #201e1a',boxShadow:'inset 0 1px 0 #7a766c, 0 2px 6px #000a',...css});
       document.body.appendChild(d); return d; };
-    // left: joystick (safe-area aware)
-    const joy=mk({left:'calc(env(safe-area-inset-left, 0px) + 14px)',bottom:'18px',width:'118px',height:'118px',borderRadius:'50%',opacity:0.85});
+    // left: joystick (safe-area aware, clear of home indicator)
+    const joy=mk({left:'calc(env(safe-area-inset-left, 0px) + 14px)',bottom:'calc(env(safe-area-inset-bottom, 0px) + 18px)',width:'118px',height:'118px',borderRadius:'50%',opacity:0.85});
     const nub=mk({left:'0',top:'0',width:'52px',height:'52px',borderRadius:'50%',opacity:0.95,position:'absolute',background:'radial-gradient(circle at 35% 30%, #8a8478, #4a463e 70%)'});
     joy.appendChild(nub); nub.style.left='33px'; nub.style.top='33px';
     const setJoy=(dx,dy)=>{ const m=Math.hypot(dx,dy)||1, c=Math.min(m,42);
@@ -107,15 +109,26 @@ const Game = {
     joy.addEventListener('touchmove',e=>{ const t=e.touches[0], r=joy.getBoundingClientRect();
       setJoy(t.clientX-(r.left+59),t.clientY-(r.top+59)); e.preventDefault(); },{passive:false});
     joy.addEventListener('touchend',e=>{ setJoy(0,0); this.moveJoy={x:0,y:0}; e.preventDefault(); },{passive:false});
-    // right: action buttons ≥ 44pt
-    const mkBtn=(label,bottom,cb)=>{ const b=mk({right:'calc(env(safe-area-inset-right, 0px) + 14px)',bottom,width:'86px',height:'48px',borderRadius:'10px',lineHeight:'48px',fontSize:'15px'});
+    // right: action buttons ≥ 44pt, above the home indicator
+    const mkBtn=(label,off,cb)=>{ const b=mk({right:'calc(env(safe-area-inset-right, 0px) + 14px)',bottom:'calc(env(safe-area-inset-bottom, 0px) + '+off+'px)',width:'86px',height:'48px',borderRadius:'10px',lineHeight:'48px',fontSize:'15px'});
       b.textContent=label;
       b.addEventListener('touchstart',e=>{ Audio2.unlock(); b.style.filter='brightness(1.3)'; cb(); e.preventDefault(); },{passive:false});
       b.addEventListener('touchend',e=>{ b.style.filter=''; e.preventDefault(); },{passive:false});
       return b; };
-    mkBtn('Attack','18px',()=>this.press('attack'));
-    mkBtn('Use','76px',()=>this.press('interact'));
-    mkBtn('Cast','134px',()=>this.press('cast'));
+    this._pads=[joy,
+      mkBtn('Attack',18,()=>this.press('attack')),
+      mkBtn('Use',76,()=>this.press('interact')),
+      mkBtn('Cast',134,()=>this.press('cast')),
+      mkBtn('Pack',192,()=>this.press('inventory'))];
+    this.padVisibility(false); // shown only in play, outside screens
+    // portrait-orientation hint
+    const hint=document.createElement('div');
+    Object.assign(hint.style,{position:'fixed',inset:'0',zIndex:20,display:'none',alignItems:'center',justifyContent:'center',
+      background:'rgba(10,9,8,0.88)',color:'#d8c890',font:'20px Georgia',textAlign:'center'});
+    hint.innerHTML='Turn your phone sideways ⟳<br><span style="font-size:13px;color:#8a8478">Vintavia is played in landscape</span>';
+    document.body.appendChild(hint);
+    const orient=()=>{ hint.style.display=(innerHeight>innerWidth)?'flex':'none'; };
+    addEventListener('resize',orient); orient();
   },
   userActed(){ if(this.graceUntilInput){ this.graceUntilInput=false; } },
   press(action){ // single consumer per action — also the test/touch entry point
@@ -149,6 +162,8 @@ const Game = {
     requestAnimationFrame(t=>this.loop(t));
     const dt=Math.min(50,now-(this._last||now)); this._last=now;
     Art.tick(now);
+    const padsOn=this.state==='play'&&!UI.screen;
+    if(padsOn!==this._padsOn){ this._padsOn=padsOn; this.padVisibility(padsOn); }
     if(this.state==='play'&&!UI.screen){
       const simDt=this.turnBased? Math.min(dt,this.tbBudget):dt;
       if(simDt>0){ this.update(simDt); if(this.turnBased) this.tbBudget-=simDt; }
@@ -653,8 +668,10 @@ const Game = {
     if(d.use==='cure'){ if(d.cures.includes(pc.cond)) pc.cond='ok'; Log.add(pc.name+' is purged of ills.',palIdx(2,12)); Audio2.sfx('heal'); }
     pc.items[idx]=null;
   },
-  buyItem(id,price){
+  bestMerchant(){ return Math.max(...this.party.pcs.map(pc=>pc.skills.merchant||0)); },
+  buyItem(id){ // price ALWAYS recomputed from Rules — UI-passed prices are display-only
     const P=this.party;
+    const price=Rules.buyPrice(ITEMS[id].price,this.bestMerchant());
     if(P.gold<price){ UI.say('Not enough gold.'); Audio2.sfx('error'); return; }
     const it=Items.make(id);
     if(!this.giveItem(it)){ UI.say('All packs are full.'); Audio2.sfx('error'); return; }
@@ -662,13 +679,15 @@ const Game = {
     Log.add('Bought '+ITEMS[id].name+' for '+price+'g.');
     this.onQuestItemsChanged();
   },
-  sellItem(pi,idx,price){
+  sellItem(pi,idx){
     const pc=this.party.pcs[pi]; const it=pc.items[idx]; if(!it) return;
+    const price=Rules.sellPrice(Items.basePrice(it),this.bestMerchant());
     pc.items[idx]=null; this.party.gold+=price; this.stats.goldEarned+=price;
     Audio2.sfx('coin'); Log.add('Sold '+Items.displayName(it)+' for '+price+'g.');
   },
-  buySpell(pi,id,price){
+  buySpell(pi,id){
     const P=this.party, pc=P.pcs[pi];
+    const price=Rules.buyPrice(Spellcraft.guildPrice(id),this.bestMerchant());
     if(P.gold<price){ UI.say('Not enough gold.'); Audio2.sfx('error'); return; }
     P.gold-=price; pc.spells.push(id);
     Audio2.sfx('levelup'); Log.add(pc.name+' learns '+SPELLS[id].name+'!',palIdx(6,13));
@@ -721,8 +740,11 @@ const Game = {
     if(hours>0){
       for(const pc of this.party.pcs){
         if(pc.cond==='poisoned'||pc.cond==='diseased'){
-          pc.hp-=Rules.poisonTick(pc)*hours;
-          if(pc.hp<=0){ pc.hp=0; if(pc.cond!=='dead'){ Log.add(pc.name+' succumbs to sickness!',palIdx(14,12)); pc.cond='unconscious'; } }
+          // sickness grinds hp to the floor but never converts to unconscious —
+          // converting would let rest launder poison into a free full cure
+          const was=pc.hp;
+          pc.hp=Math.max(0,pc.hp-Rules.poisonTick(pc)*hours);
+          if(pc.hp===0&&was>0) Log.add(pc.name+' is fading — find a healer!',palIdx(14,12));
         }
       }
       // buff expiry
@@ -896,7 +918,7 @@ const Game = {
       if(m.attackT&&now-m.attackT<420) frame='attack';
       else if(m.state==='chase') frame=wob(m)?'walk':'idle';
       ents.push({x:m.x,y:m.y,tex:sp.frames[frame],tw:sp.tw,th:sp.th,scale:d.scale,ghost:m.mid==='ghost',
-        shade:m.hurtT&&now-m.hurtT<140?-3:0});
+        shade:(m.hurtT&&now-m.hurtT<140?-3:0)+(m.mid==='ghost'?-4:0)});
     }
     for(const c of this.corpses){
       if(c.mapId!==this.mapId||c.looted) continue;
@@ -914,7 +936,8 @@ const Game = {
       if(dc.kind==='brazier'&&flick) key='decor_brazier_b';
       if(dc.kind==='tree'&&((dc.x*7+dc.y*13)|0)%2) key='decor_tree2';
       const sp=Art.sprites[key]; if(!sp) continue;
-      ents.push({x:dc.x,y:dc.y,tex:sp.frames.idle,tw:sp.tw,th:sp.th,scale:dc.kind.startsWith('tree')?1.35:0.9});
+      const dscale=dc.kind.startsWith('tree')?1.6:dc.kind==='cryptgate'?1.5:0.9;
+      ents.push({x:dc.x,y:dc.y,tex:sp.frames.idle,tw:sp.tw,th:sp.th,scale:dscale});
     }
     for(const ch of map.chests){
       const opened=this.flags.chests[this.mapId+':'+ch.id];
