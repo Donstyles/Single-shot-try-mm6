@@ -645,6 +645,23 @@ const World = {
     this.maps={};
     this.buildOutdoor();
     this.buildDungeons();
+    for(const id in this.maps) this.computeLightMap(this.maps[id]);
+  },
+  computeLightMap(map){ // per-cell glow from fire sources (0..6 shade relief)
+    const lm=new Uint8Array(map.w*map.h);
+    const SRC={campfire:[5,4.5],brazier:[4,3.8],lamp:[4,3.6]};
+    for(const d of map.decor){
+      const s=SRC[d.kind]; if(!s) continue;
+      const [str,rad]=s;
+      for(let y=Math.max(0,d.y-rad|0);y<=Math.min(map.h-1,d.y+rad|0);y++)
+        for(let x=Math.max(0,d.x-rad|0);x<=Math.min(map.w-1,d.x+rad|0);x++){
+          const dist=Math.hypot(x+0.5-d.x,y+0.5-d.y);
+          if(dist>rad) continue;
+          const v=lm[y*map.w+x]+Math.round(str*(1-dist/rad));
+          lm[y*map.w+x]=v>6?6:v;
+        }
+    }
+    map.lightMap=lm;
   },
   buildOutdoor(){
     const w=96,h=96, cells=new Uint8Array(w*h), floor=new Uint8Array(w*h);
@@ -951,6 +968,19 @@ const Engine = {
     const light=cam.light;               // 0..1 global
     const torch=cam.torch||0;            // extra radius light indoors
     const outdoor=map.outdoor;
+    // fire-glow map, pre-scaled per frame bucket (noon drowns it outdoors)
+    const lmScale=outdoor? (1-light)*1.1 : 1;
+    let lm2=null;
+    if(map.lightMap&&lmScale>0.05){
+      const bucket=(lmScale*8)|0;
+      if(this._lmMap!==map||this._lmBucket!==bucket){
+        this._lmMap=map; this._lmBucket=bucket;
+        const src=map.lightMap, out=this._lm2=new Uint8Array(src.length);
+        for(let i=0;i<src.length;i++) out[i]=(src[i]*lmScale)|0;
+      }
+      lm2=this._lm2;
+    }
+    const glowAt=(cx,cy)=>lm2? (cx>=0&&cy>=0&&cx<mw&&cy<mh? lm2[cy*mw+cx]:0):0;
     const shadeAt=(d,side)=>{           // returns 0..12 darkening
       let s=(outdoor? Math.min(d*0.22,5.0) : d*(1.7-torch*0.9)); // day never fades to black — haze handles distance
       s+= (1-light)*(outdoor?7:3);
@@ -1001,7 +1031,9 @@ const Engine = {
           const jit=cellJit(cx,cy);
           const tx=((((fx-cx)*64)|0)+jit)&63, ty=((((fy-cy)*64)|0)+(jit>>1))&63;
           let pi=tex[ty*64+tx];
-          const s=(pi&15)-sh; fb[row+x]=(pi&240)|(s<0?0:s);
+          let s=(pi&15)-sh;
+          if(lm2&&cx>=0&&cy>=0&&cx<mw&&cy<mh) s+=lm2[cy*mw+cx];
+          fb[row+x]=(pi&240)|(s<0?0:s>15?15:s);
           fx+=stepX; fy+=stepY;
         }
       }
@@ -1047,7 +1079,7 @@ const Engine = {
       let texX=(wallX*64)|0; if((side===0&&rdX>0)||(side===1&&rdY<0)) texX=63-texX;
       if(tex!==7&&tex!==8&&tex!==9) texX=(texX+cellJit(mapX,mapY))&63; // vary repeats (not doors/shopfronts)
       const wt=Art.walls[tex];
-      const sh=shadeAt(dist,side);
+      const sh=shadeAt(dist,side)-(glowAt(mapX,mapY)|0);
       const hz=hazeOn?hazeLvl(dist):0;
       const step=64/lineH;
       let tpos=y0<0? -y0*step:0;
@@ -1056,7 +1088,7 @@ const Engine = {
         if(hz&&BAYER4[((y&3)<<2)|(x&3)]<HZT[hz]){ fb[y*w+x]=hazeIdx; tpos+=step; continue; }
         const pi=wt[((tpos|0)&63)*64+texX]; tpos+=step;
         const s=(pi&15)-sh;
-        fb[y*w+x]=(pi&240)|(s<0?0:s);
+        fb[y*w+x]=(pi&240)|(s<0?0:s>15?15:s);
       }
     }
     // sprites (far to near)
@@ -1076,7 +1108,7 @@ const Engine = {
       let x0=scr-(sprW>>1), x1=x0+sprW;
       if(x1<0||x0>=w) continue;
       const tex=e.tex, tw=e.tw, th=e.th;
-      const sh=shadeAt(trY,0)+(e.shade||0);
+      const sh=shadeAt(trY,0)+(e.shade||0)-(glowAt(e.x|0,e.y|0)|0);
       const ghost=e.ghost;
       const hz=hazeOn?hazeLvl(trY):0; // far sprites dissolve into the haze too
       for(let sx=Math.max(0,x0);sx<Math.min(w,x1);sx++){
@@ -3072,6 +3104,23 @@ const Game = {
     // monsters
     this.updateMonsters(dt);
     this.updateProjectiles(dt);
+    // townsfolk stroll near their posts
+    const nr=RNG.get('npc');
+    for(const n of map.npcs){
+      if(n.hx===undefined){ n.hx=n.x; n.hy=n.y; }
+      n.wt=(n.wt||nr.int(500,3000))-dt;
+      if(n.wt<=0){ n.wt=nr.int(2600,7000); n.tx=n.hx+(nr.next()*2-1)*1.4; n.ty=n.hy+(nr.next()*2-1)*1.4; }
+      if(n.tx!==undefined){
+        const d=Math.hypot(n.tx-n.x,n.ty-n.y);
+        n.moving=d>0.08;
+        if(n.moving){
+          const k=Math.min(1,0.55*s/d), nx=n.x+(n.tx-n.x)*k, ny=n.y+(n.ty-n.y)*k;
+          const c=map.cells[(ny|0)*map.w+(nx|0)];
+          if(!c&&map.floor[(ny|0)*map.w+(nx|0)]!==6&&dist2(nx,ny,this.px,this.py)>1) { n.x=nx; n.y=ny; }
+          else n.tx=undefined;
+        }
+      }
+    }
     // music by context
     if(this.state==='play'){
       const near=this.monstersNear(9).some(m=>m.state==='chase');
@@ -3806,7 +3855,7 @@ const Game = {
     }
     for(const n of map.npcs){
       const sp=Art.sprites['npc_'+n.kind];
-      ents.push({x:n.x,y:n.y,tex:sp.frames[((now/450|0)%4===0)?'walk':'idle'],tw:sp.tw,th:sp.th,scale:1});
+      ents.push({x:n.x,y:n.y,tex:sp.frames[n.moving&&((now/300|0)%2)?'walk':'idle'],tw:sp.tw,th:sp.th,scale:1});
     }
     const flick=(now/240|0)%2;
     for(const dc of map.decor){

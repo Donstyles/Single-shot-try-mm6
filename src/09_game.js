@@ -213,6 +213,23 @@ const Game = {
     // monsters
     this.updateMonsters(dt);
     this.updateProjectiles(dt);
+    // townsfolk stroll near their posts
+    const nr=RNG.get('npc');
+    for(const n of map.npcs){
+      if(n.hx===undefined){ n.hx=n.x; n.hy=n.y; }
+      n.wt=(n.wt||nr.int(500,3000))-dt;
+      if(n.wt<=0){ n.wt=nr.int(2600,7000); n.tx=n.hx+(nr.next()*2-1)*1.4; n.ty=n.hy+(nr.next()*2-1)*1.4; }
+      if(n.tx!==undefined){
+        const d=Math.hypot(n.tx-n.x,n.ty-n.y);
+        n.moving=d>0.08;
+        if(n.moving){
+          const k=Math.min(1,0.55*s/d), nx=n.x+(n.tx-n.x)*k, ny=n.y+(n.ty-n.y)*k;
+          const c=map.cells[(ny|0)*map.w+(nx|0)];
+          if(!c&&map.floor[(ny|0)*map.w+(nx|0)]!==6&&dist2(nx,ny,this.px,this.py)>1) { n.x=nx; n.y=ny; }
+          else n.tx=undefined;
+        }
+      }
+    }
     // music by context
     if(this.state==='play'){
       const near=this.monstersNear(9).some(m=>m.state==='chase');
@@ -947,7 +964,7 @@ const Game = {
     }
     for(const n of map.npcs){
       const sp=Art.sprites['npc_'+n.kind];
-      ents.push({x:n.x,y:n.y,tex:sp.frames[((now/450|0)%4===0)?'walk':'idle'],tw:sp.tw,th:sp.th,scale:1});
+      ents.push({x:n.x,y:n.y,tex:sp.frames[n.moving&&((now/300|0)%2)?'walk':'idle'],tw:sp.tw,th:sp.th,scale:1});
     }
     const flick=(now/240|0)%2;
     for(const dc of map.decor){

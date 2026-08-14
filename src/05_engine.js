@@ -91,6 +91,19 @@ const Engine = {
     const light=cam.light;               // 0..1 global
     const torch=cam.torch||0;            // extra radius light indoors
     const outdoor=map.outdoor;
+    // fire-glow map, pre-scaled per frame bucket (noon drowns it outdoors)
+    const lmScale=outdoor? (1-light)*1.1 : 1;
+    let lm2=null;
+    if(map.lightMap&&lmScale>0.05){
+      const bucket=(lmScale*8)|0;
+      if(this._lmMap!==map||this._lmBucket!==bucket){
+        this._lmMap=map; this._lmBucket=bucket;
+        const src=map.lightMap, out=this._lm2=new Uint8Array(src.length);
+        for(let i=0;i<src.length;i++) out[i]=(src[i]*lmScale)|0;
+      }
+      lm2=this._lm2;
+    }
+    const glowAt=(cx,cy)=>lm2? (cx>=0&&cy>=0&&cx<mw&&cy<mh? lm2[cy*mw+cx]:0):0;
     const shadeAt=(d,side)=>{           // returns 0..12 darkening
       let s=(outdoor? Math.min(d*0.22,5.0) : d*(1.7-torch*0.9)); // day never fades to black — haze handles distance
       s+= (1-light)*(outdoor?7:3);
@@ -141,7 +154,9 @@ const Engine = {
           const jit=cellJit(cx,cy);
           const tx=((((fx-cx)*64)|0)+jit)&63, ty=((((fy-cy)*64)|0)+(jit>>1))&63;
           let pi=tex[ty*64+tx];
-          const s=(pi&15)-sh; fb[row+x]=(pi&240)|(s<0?0:s);
+          let s=(pi&15)-sh;
+          if(lm2&&cx>=0&&cy>=0&&cx<mw&&cy<mh) s+=lm2[cy*mw+cx];
+          fb[row+x]=(pi&240)|(s<0?0:s>15?15:s);
           fx+=stepX; fy+=stepY;
         }
       }
@@ -187,7 +202,7 @@ const Engine = {
       let texX=(wallX*64)|0; if((side===0&&rdX>0)||(side===1&&rdY<0)) texX=63-texX;
       if(tex!==7&&tex!==8&&tex!==9) texX=(texX+cellJit(mapX,mapY))&63; // vary repeats (not doors/shopfronts)
       const wt=Art.walls[tex];
-      const sh=shadeAt(dist,side);
+      const sh=shadeAt(dist,side)-(glowAt(mapX,mapY)|0);
       const hz=hazeOn?hazeLvl(dist):0;
       const step=64/lineH;
       let tpos=y0<0? -y0*step:0;
@@ -196,7 +211,7 @@ const Engine = {
         if(hz&&BAYER4[((y&3)<<2)|(x&3)]<HZT[hz]){ fb[y*w+x]=hazeIdx; tpos+=step; continue; }
         const pi=wt[((tpos|0)&63)*64+texX]; tpos+=step;
         const s=(pi&15)-sh;
-        fb[y*w+x]=(pi&240)|(s<0?0:s);
+        fb[y*w+x]=(pi&240)|(s<0?0:s>15?15:s);
       }
     }
     // sprites (far to near)
@@ -216,7 +231,7 @@ const Engine = {
       let x0=scr-(sprW>>1), x1=x0+sprW;
       if(x1<0||x0>=w) continue;
       const tex=e.tex, tw=e.tw, th=e.th;
-      const sh=shadeAt(trY,0)+(e.shade||0);
+      const sh=shadeAt(trY,0)+(e.shade||0)-(glowAt(e.x|0,e.y|0)|0);
       const ghost=e.ghost;
       const hz=hazeOn?hazeLvl(trY):0; // far sprites dissolve into the haze too
       for(let sx=Math.max(0,x0);sx<Math.min(w,x1);sx++){

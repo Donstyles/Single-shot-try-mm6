@@ -119,6 +119,23 @@ const World = {
     this.maps={};
     this.buildOutdoor();
     this.buildDungeons();
+    for(const id in this.maps) this.computeLightMap(this.maps[id]);
+  },
+  computeLightMap(map){ // per-cell glow from fire sources (0..6 shade relief)
+    const lm=new Uint8Array(map.w*map.h);
+    const SRC={campfire:[5,4.5],brazier:[4,3.8],lamp:[4,3.6]};
+    for(const d of map.decor){
+      const s=SRC[d.kind]; if(!s) continue;
+      const [str,rad]=s;
+      for(let y=Math.max(0,d.y-rad|0);y<=Math.min(map.h-1,d.y+rad|0);y++)
+        for(let x=Math.max(0,d.x-rad|0);x<=Math.min(map.w-1,d.x+rad|0);x++){
+          const dist=Math.hypot(x+0.5-d.x,y+0.5-d.y);
+          if(dist>rad) continue;
+          const v=lm[y*map.w+x]+Math.round(str*(1-dist/rad));
+          lm[y*map.w+x]=v>6?6:v;
+        }
+    }
+    map.lightMap=lm;
   },
   buildOutdoor(){
     const w=96,h=96, cells=new Uint8Array(w*h), floor=new Uint8Array(w*h);
