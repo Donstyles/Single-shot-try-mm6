@@ -60,16 +60,16 @@ const UI = {
     // ---- bottom: log + portraits ----
     const ly=330, logW=222;
     const rows=[];
-    for(let i=Math.max(0,Log.lines.length-6);i<Log.lines.length;i++){
+    for(let i=Math.max(0,Log.lines.length-5);i<Log.lines.length;i++){
       const l=Log.lines[i]; let line='';
       for(let wd of l.text.split(' ')){
-        while(E.textW(wd,9)>logW){ let cut=wd.length; while(cut>1&&E.textW(wd.slice(0,cut),9)>logW) cut--; rows.push({t:wd.slice(0,cut),c:l.color}); wd=wd.slice(cut); }
-        if(line&&E.textW(line+wd,9)>logW){ rows.push({t:line,c:l.color}); line=''; }
+        while(E.textW(wd,11)>logW){ let cut=wd.length; while(cut>1&&E.textW(wd.slice(0,cut),11)>logW) cut--; rows.push({t:wd.slice(0,cut),c:l.color}); wd=wd.slice(cut); }
+        if(line&&E.textW(line+wd,11)>logW){ rows.push({t:line,c:l.color}); line=''; }
         line+=wd+' ';
       }
       rows.push({t:line,c:l.color});
     }
-    rows.slice(-8).forEach((r,n)=>E.text(r.t,12,ly+2+n*12,{size:9,ramp:(r.c>>4)&15}));
+    rows.slice(-7).forEach((r,n)=>E.text(r.t,12,ly+2+n*14,{size:11,ramp:(r.c>>4)&15}));
     // portraits
     const px0=240;
     for(let i=0;i<4;i++){

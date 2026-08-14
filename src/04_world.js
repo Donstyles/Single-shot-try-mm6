@@ -14,9 +14,9 @@ const TOWN_ROWS = [
   '#,HHHHHH,,HHHHHH,,HHHHHHH,,HHHHHHHH,#',
   '#,HHWHHH,,HHAHHH,,HHHMHHH,,HHHVHHHH,#',
   '#,,,s,,,,,,,s,,,,,,,,s,,,,,,,,s,,,,,#',
-  '#===================================#',
   ':===================================:',
-  '#===================================#',
+  ':===================================:',
+  ':===================================:',
   '#,,,s,,,,,,,s,,,F,,,,s,,,,,,,,s,,,,,#',
   '#,HHTHHH,,HHRHHH,,HHHBHHH,,HHHCHHHH,#',
   '#,HHHHHH,,HHHHHH,,HHHHHHH,,HHHHHHHH,#',
@@ -291,7 +291,7 @@ const World = {
 // ---------- quests ----------
 const QUESTS = {
   main1:{name:'The Stolen Ledger', giver:'mayor',   kind:'fetchkill', item:'q_ledger', target:'bandit_boss',
-    desc:'Bandits raided the counting house and took the tax ledger. Their camp lies north-east, past the east gate. Slay their captain and bring the ledger home.',
+    desc:'Bandits raided the counting house and took the tax ledger. Their camp lies north-east, past the east gate. Pick the sentries off one by one — rush the campfire and they will bury you. Slay their captain and bring the ledger home.',
     done:'The ledger! Vintavia is in your debt. Take this purse — and my thanks.', gold:300, xp:800},
   main2:{name:'Silver for the Temple', giver:'priest', kind:'fetch', item:'q_censer',
     desc:'Grave-robbers dragged our silver censer into the Crypt east of town. Without it I cannot bless the harvest. Bring it back, and the Light will remember you.',

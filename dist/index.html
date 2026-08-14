@@ -547,9 +547,9 @@ const TOWN_ROWS = [
   '#,HHHHHH,,HHHHHH,,HHHHHHH,,HHHHHHHH,#',
   '#,HHWHHH,,HHAHHH,,HHHMHHH,,HHHVHHHH,#',
   '#,,,s,,,,,,,s,,,,,,,,s,,,,,,,,s,,,,,#',
-  '#===================================#',
   ':===================================:',
-  '#===================================#',
+  ':===================================:',
+  ':===================================:',
   '#,,,s,,,,,,,s,,,F,,,,s,,,,,,,,s,,,,,#',
   '#,HHTHHH,,HHRHHH,,HHHBHHH,,HHHCHHHH,#',
   '#,HHHHHH,,HHHHHH,,HHHHHHH,,HHHHHHHH,#',
@@ -824,7 +824,7 @@ const World = {
 // ---------- quests ----------
 const QUESTS = {
   main1:{name:'The Stolen Ledger', giver:'mayor',   kind:'fetchkill', item:'q_ledger', target:'bandit_boss',
-    desc:'Bandits raided the counting house and took the tax ledger. Their camp lies north-east, past the east gate. Slay their captain and bring the ledger home.',
+    desc:'Bandits raided the counting house and took the tax ledger. Their camp lies north-east, past the east gate. Pick the sentries off one by one — rush the campfire and they will bury you. Slay their captain and bring the ledger home.',
     done:'The ledger! Vintavia is in your debt. Take this purse — and my thanks.', gold:300, xp:800},
   main2:{name:'Silver for the Temple', giver:'priest', kind:'fetch', item:'q_censer',
     desc:'Grave-robbers dragged our silver censer into the Crypt east of town. Without it I cannot bless the harvest. Bring it back, and the Light will remember you.',
@@ -2487,16 +2487,16 @@ const UI = {
     // ---- bottom: log + portraits ----
     const ly=330, logW=222;
     const rows=[];
-    for(let i=Math.max(0,Log.lines.length-6);i<Log.lines.length;i++){
+    for(let i=Math.max(0,Log.lines.length-5);i<Log.lines.length;i++){
       const l=Log.lines[i]; let line='';
       for(let wd of l.text.split(' ')){
-        while(E.textW(wd,9)>logW){ let cut=wd.length; while(cut>1&&E.textW(wd.slice(0,cut),9)>logW) cut--; rows.push({t:wd.slice(0,cut),c:l.color}); wd=wd.slice(cut); }
-        if(line&&E.textW(line+wd,9)>logW){ rows.push({t:line,c:l.color}); line=''; }
+        while(E.textW(wd,11)>logW){ let cut=wd.length; while(cut>1&&E.textW(wd.slice(0,cut),11)>logW) cut--; rows.push({t:wd.slice(0,cut),c:l.color}); wd=wd.slice(cut); }
+        if(line&&E.textW(line+wd,11)>logW){ rows.push({t:line,c:l.color}); line=''; }
         line+=wd+' ';
       }
       rows.push({t:line,c:l.color});
     }
-    rows.slice(-8).forEach((r,n)=>E.text(r.t,12,ly+2+n*12,{size:9,ramp:(r.c>>4)&15}));
+    rows.slice(-7).forEach((r,n)=>E.text(r.t,12,ly+2+n*14,{size:11,ramp:(r.c>>4)&15}));
     // portraits
     const px0=240;
     for(let i=0;i<4;i++){
@@ -3158,7 +3158,8 @@ const Game = {
     this.state='play'; UI.close();
     Log.lines.length=0;
     Log.add('Vintavia, at last. The mayor is said to pay for bold hands.');
-    Log.add('The weapon smith is just ahead — talk to folk with Space.');
+    Log.add('ontouchstart' in window? 'The weapon smith is just ahead — walk up and tap Use to talk.'
+      : 'The weapon smith is just ahead — talk to folk with Space.');
     Audio2.setTrack('town');
   },
 
@@ -3179,7 +3180,7 @@ const Game = {
     const down=e=>{ Audio2.unlock(); const p=pt(e); drag={x:p.x,y:p.y,moved:0,t:performance.now()}; e.preventDefault(); };
     const move=e=>{ if(!drag) return; const p=pt(e);
       const inVP=drag.x>=VP.x&&drag.x<VP.x+VP.w&&drag.y>=VP.y&&drag.y<VP.y+VP.h;
-      if(inVP&&this.state==='play'&&!UI.screen){ const dx=p.x-drag.x; this.ang+=dx*0.008; this.userActed(); }
+      if(inVP&&this.state==='play'&&!UI.screen){ const dx=p.x-drag.x; this.ang+=dx*0.0055; this.userActed(); }
       drag.moved+=Math.abs(p.x-drag.x)+Math.abs(p.y-drag.y); drag.x=p.x; drag.y=p.y; e.preventDefault(); };
     const up=e=>{ if(!drag) return;
       if(drag.moved<10&&performance.now()-drag.t<600){ this.tapAt(drag.x,drag.y); }
@@ -3249,9 +3250,10 @@ const Game = {
   },
   tapAt(gx,gy){ UI.tap(gx,gy); },
   viewportTap(lx,ly){
-    // tap in 3D view: attack if a monster is near center-ish, else interact
+    // tap in 3D view: fight if anything is in reach or sighted, else interact
     const t=this.currentTarget();
-    if(t&&Math.abs(lx-VP.w/2)<VP.w*0.3) this.partyAttack();
+    const near=World.maps[this.mapId].monsters.some(m=>m.hp>0&&dist2(m.x,m.y,this.px,this.py)<2.4*2.4);
+    if(near||(t&&Math.abs(lx-VP.w/2)<VP.w*0.35)) this.partyAttack();
     else this.interact();
   },
 
@@ -3427,7 +3429,7 @@ const Game = {
       const distP=Math.hypot(m.x-this.px,m.y-this.py);
       const calm=m.calmUntil>this.clock.min;
       if(m.state!=='chase'){
-        const aggroR=m.group? d.aggro*0.55 : d.aggro; // camps: singles pull, not the whole warband
+        const aggroR=m.group? d.aggro*0.45 : d.aggro; // camps: singles pull, not the whole warband
         if(!this.graceUntilInput&&!calm&&distP<aggroR&&this.lineOfSight(m.x,m.y,this.px,this.py)){
           m.state='chase';
           if(distP<7) Audio2.sfx('ambush');
@@ -3621,7 +3623,16 @@ const Game = {
   },
   partyAttack(){
     if(this.state!=='play') return;
-    const t=this.currentTarget();
+    let t=this.currentTarget();
+    if(!t){ // facing assist: an adjacent foe is a valid target — turn and fight
+      let bd=2.4*2.4;
+      for(const m of World.maps[this.mapId].monsters){
+        if(m.hp<=0) continue;
+        const d2=dist2(m.x,m.y,this.px,this.py);
+        if(d2<bd){ bd=d2; t=m; }
+      }
+      if(t) this.ang=angTo(this.px,this.py,t.x,t.y);
+    }
     const r=RNG.get('combat');
     let acted=false;
     for(const pc of this.party.pcs){
@@ -4274,6 +4285,7 @@ const Debug = {
 addEventListener('error',e=>{ Debug.errors.push((e.message||'error')+' @ '+(e.filename||'')+':'+(e.lineno||'')); });
 
 // ---------- test/agent harness ----------
+window.Engine=Engine; window.Game=Game; window.UI=UI; window.World=World; window.Rules=Rules; window.Art=Art;
 window.__game={
   newGame(opts){
     if(opts&&opts.skipChargen){ // debug path — clearly marked; judges must use the title screen

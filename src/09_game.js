@@ -62,7 +62,8 @@ const Game = {
     this.state='play'; UI.close();
     Log.lines.length=0;
     Log.add('Vintavia, at last. The mayor is said to pay for bold hands.');
-    Log.add('The weapon smith is just ahead — talk to folk with Space.');
+    Log.add('ontouchstart' in window? 'The weapon smith is just ahead — walk up and tap Use to talk.'
+      : 'The weapon smith is just ahead — talk to folk with Space.');
     Audio2.setTrack('town');
   },
 
@@ -83,7 +84,7 @@ const Game = {
     const down=e=>{ Audio2.unlock(); const p=pt(e); drag={x:p.x,y:p.y,moved:0,t:performance.now()}; e.preventDefault(); };
     const move=e=>{ if(!drag) return; const p=pt(e);
       const inVP=drag.x>=VP.x&&drag.x<VP.x+VP.w&&drag.y>=VP.y&&drag.y<VP.y+VP.h;
-      if(inVP&&this.state==='play'&&!UI.screen){ const dx=p.x-drag.x; this.ang+=dx*0.008; this.userActed(); }
+      if(inVP&&this.state==='play'&&!UI.screen){ const dx=p.x-drag.x; this.ang+=dx*0.0055; this.userActed(); }
       drag.moved+=Math.abs(p.x-drag.x)+Math.abs(p.y-drag.y); drag.x=p.x; drag.y=p.y; e.preventDefault(); };
     const up=e=>{ if(!drag) return;
       if(drag.moved<10&&performance.now()-drag.t<600){ this.tapAt(drag.x,drag.y); }
@@ -153,9 +154,10 @@ const Game = {
   },
   tapAt(gx,gy){ UI.tap(gx,gy); },
   viewportTap(lx,ly){
-    // tap in 3D view: attack if a monster is near center-ish, else interact
+    // tap in 3D view: fight if anything is in reach or sighted, else interact
     const t=this.currentTarget();
-    if(t&&Math.abs(lx-VP.w/2)<VP.w*0.3) this.partyAttack();
+    const near=World.maps[this.mapId].monsters.some(m=>m.hp>0&&dist2(m.x,m.y,this.px,this.py)<2.4*2.4);
+    if(near||(t&&Math.abs(lx-VP.w/2)<VP.w*0.35)) this.partyAttack();
     else this.interact();
   },
 
@@ -331,7 +333,7 @@ const Game = {
       const distP=Math.hypot(m.x-this.px,m.y-this.py);
       const calm=m.calmUntil>this.clock.min;
       if(m.state!=='chase'){
-        const aggroR=m.group? d.aggro*0.55 : d.aggro; // camps: singles pull, not the whole warband
+        const aggroR=m.group? d.aggro*0.45 : d.aggro; // camps: singles pull, not the whole warband
         if(!this.graceUntilInput&&!calm&&distP<aggroR&&this.lineOfSight(m.x,m.y,this.px,this.py)){
           m.state='chase';
           if(distP<7) Audio2.sfx('ambush');
@@ -525,7 +527,16 @@ const Game = {
   },
   partyAttack(){
     if(this.state!=='play') return;
-    const t=this.currentTarget();
+    let t=this.currentTarget();
+    if(!t){ // facing assist: an adjacent foe is a valid target — turn and fight
+      let bd=2.4*2.4;
+      for(const m of World.maps[this.mapId].monsters){
+        if(m.hp<=0) continue;
+        const d2=dist2(m.x,m.y,this.px,this.py);
+        if(d2<bd){ bd=d2; t=m; }
+      }
+      if(t) this.ang=angTo(this.px,this.py,t.x,t.y);
+    }
     const r=RNG.get('combat');
     let acted=false;
     for(const pc of this.party.pcs){

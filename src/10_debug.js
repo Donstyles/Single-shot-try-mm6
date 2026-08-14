@@ -83,6 +83,7 @@ const Debug = {
 addEventListener('error',e=>{ Debug.errors.push((e.message||'error')+' @ '+(e.filename||'')+':'+(e.lineno||'')); });
 
 // ---------- test/agent harness ----------
+window.Engine=Engine; window.Game=Game; window.UI=UI; window.World=World; window.Rules=Rules; window.Art=Art;
 window.__game={
   newGame(opts){
     if(opts&&opts.skipChargen){ // debug path — clearly marked; judges must use the title screen
