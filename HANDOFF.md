@@ -33,6 +33,34 @@ of dungeons. Content volume is therefore a *third* axis of the gap, independent 
 — and it is the one the discriminator will never measure, because a screenshot cannot show how much
 world is behind it. Do not let single-screenshot parity hide it.
 
+## Definition of done
+
+"Perfect MM6" is not one goal, it is three, and they fail independently. Write the verdict for each
+separately or the good axis will hide the bad one:
+
+1. **Systems** — MM6-shaped rules that hold under abuse. *Done when*: all three suites green, the
+   campaign test beats the game, a determinism diff over a scripted session is byte-identical, and
+   the veteran panel reports no defect it would have phoned a tipline about.
+2. **Presentation** — the screenshot axis. *Done when*: discriminator accuracy over the full shot
+   list approaches chance (~50–60%), and judges' stated tells are aesthetic preferences rather than
+   structural ones ("the trees repeat" is a fix; "this is a raycaster" is a failure).
+3. **Volume** — how much world is behind the screenshot. *Done when*: enough regions and dungeons
+   that a player can get lost. **No screenshot measures this**, which is exactly why it will be the
+   axis quietly skipped. Give it a number up front and hold to it.
+
+### Measure MM6, do not remember it
+
+Every "MM6 was like this" claim made from memory during this project that mattered turned out to
+need checking. Before the next art wave, take reference screenshots and **measure**, recording the
+results in `critique/MM6_REFERENCE.md`: 3D viewport pixel dimensions inside the 640×480 frame, HUD
+band height, portrait size and spacing, wall texture resolution, typical sprite height in pixels at
+one cell and at ten, horizon position relative to viewport centre, fog onset distance in cells, the
+palette's actual ramp structure, font cap-height. Numbers, not adjectives. That file does not exist
+yet and it is the highest-leverage missing artifact in this repo, because every art decision
+downstream is currently a guess calibrated against a feeling.
+
+Reference for measurement only — no asset rips, ever. Style parity, original content.
+
 ## The plan (agreed with user)
 
 1. **Sprite foundry** (WORKING — `tools/foundry.js` + `tools/creatures.js`): Three.js in headless
@@ -227,6 +255,35 @@ pass; a round that ends without a commit is a round that may not have happened.
 
 Order matters more than effort. Build the harness (L2) before the systems, the shot list and the
 discriminator (L3/L5) before the art, and the panel (L4) before believing anything is done.
+
+## First hour of the next session
+
+Do these in order before writing a line of game code. They cost little and they prevent the two
+failure modes that actually happened here — building on an unverified base, and grading yourself.
+
+1. `node test/systems.test.js && node test/e2e.test.js && node test/campaign.test.js` — confirm the
+   base is green before touching it. If it is red, that is the whole first task.
+2. `node build.js`, then capture the full shot list (`critique/SHOTLIST.md`) into
+   `critique/shots/r0/` with the commit SHA recorded. That is the "before" everything is measured
+   against, and it takes minutes.
+3. Build `critique/MM6_REFERENCE.md` by measuring reference screenshots (see Definition of done).
+4. Spawn `mm6-veteran` on the r0 build, cold, with no briefing. Read its verdict *before* deciding
+   what to work on — the plan in this file is a hypothesis, and the veteran is the test of it.
+5. Only now pick the work. Terrain first (it moves s04/s03/s05 and blocks sprite placement), then
+   the sprite foundry backlog, then image-gen textures.
+6. Commit and push at every round boundary. A round that ends without a commit may not have happened.
+
+## Honest odds
+
+Nothing in this document guarantees a perfect MM6, and a handoff that claimed otherwise would be
+the least useful kind of document. What is here removes the *avoidable* failures: unverified bases,
+self-grading, unreproducible criticism, findings that evaporate, lost context between sessions.
+
+What remains genuinely hard, in order: **asset volume** (hundreds of textures, sprites and portraits
+at consistent quality — the foundry is the answer but it has produced one creature out of twenty),
+**content volume** (four maps against MM6's dozens, and it is invisible to every metric we have),
+and **the last 10% of the renderer**, where each remaining tell costs more than the one before it.
+Budget accordingly, and prefer finishing one axis convincingly over advancing three halfway.
 
 ## Constraints & scars (don't relearn these)
 
