@@ -15,6 +15,24 @@ Context for any session resuming this work on branch `claude/mm6-single-prompt-g
   ("could pass as an unreleased MM6 expansion"). Current build reads as a competent 1998 *budget*
   raycaster — the gap is assets and renderer features, not systems.
 
+## Content inventory (and the scale gap)
+
+Four playable 3D maps:
+
+| Map | Size | Contents |
+|---|---|---|
+| `outdoor` "Vintavia Coast" | 96×96 (9,216 cells) | town, wilderness, coast, roads, camps, all 8 shop fronts, 4 wandering NPCs |
+| `dun1` The Crypt | 30×16 | entered from the outdoor crypt door |
+| `dun2` The Catacombs | 30×16 | |
+| `dun3` The Vault | 30×8 | endgame |
+
+Plus 8 building interiors that are **UI screens, not 3D maps**, and 6 quests (4 main, 2 side).
+
+That is one region and three small dungeons. MM6 shipped roughly thirty outdoor regions and dozens
+of dungeons. Content volume is therefore a *third* axis of the gap, independent of renderer and art
+— and it is the one the discriminator will never measure, because a screenshot cannot show how much
+world is behind it. Do not let single-screenshot parity hide it.
+
 ## The plan (agreed with user)
 
 1. **Sprite foundry** (WORKING — `tools/foundry.js` + `tools/creatures.js`): Three.js in headless
@@ -82,11 +100,22 @@ below fall straight out of that. **Bridges do not**: a bridge deck and the ravin
 are two surfaces over the same `(x,y)`, which a single-valued heightmap cannot express. Decide this
 before writing the march loop, not after.
 
-- **Bridges** — add an optional second layer: `deckH[]` + `deckSolid[]` per cell (mostly empty). The
-  column march tests the deck as a thin extruded slab *in addition to* the terrain sample, so you see
-  the gap below it. Collision picks deck-vs-ground by which surface the party is nearer to from
-  above. Keeps the heightmap single-valued and confines multi-surface logic to a few hundred cells.
-  Same mechanism later serves cave mouths, city walls with gate arches, and second-storey walkways.
+- **Bridges, gate arches, aqueducts, cave mouths** — all four are *one* primitive, so build it once
+  and build it properly: a sparse per-cell **overhead span** `{lo, hi, tex}` — an interval of solid
+  matter floating above the terrain, empty in almost every cell. The walk surface is the terrain when
+  the party is below `lo`, and `hi` when it is above. That single rule covers everything:
+  - *bridge* — you walk on `hi`, and the ravine floor is visible in the gap beneath it;
+  - *gate arch* — you walk on the terrain and pass **under** `lo`, with the wall solid overhead;
+  - *aqueduct* — both at once: arches you walk under, and a water channel running along `hi`;
+  - *cave mouth* — a span forming the cliff overhang above a tunnel entrance, so the dungeon portal
+    reads as a dark opening in rock instead of a door standing in a field.
+
+  The march draws the span band in the same pass as the terrain column. Front-to-back with a single
+  "filled to y" marker breaks here, because a span can occupy screen rows above ground already
+  filled — either track two fill regions per column or draw spans back-to-front (painter's). Decide
+  that when writing the loop; it is the one place the cheap trick does not survive contact.
+  Collision needs a headroom test under `lo`; the party is ~1.6 units tall. Same primitive later
+  gives second-storey walkways and city gatehouses for free.
 - **Ravines / canyons** — carved along a spline with steep walls and a flat floor. Their job is
   *routing*: they make bridges and fords load-bearing rather than decorative, and they give the
   vertical drama that makes a screenshot read as MM6 rather than as a lawn. Steep sides also let the
@@ -148,6 +177,14 @@ the enemy here: an agent that watched the thing get built will grade the effort,
 panel is why the round-1 veteran score was a 6 while the builder's self-assessment was much higher.
 Run at least two rounds — round 2 finds what round 1's fixes broke, and it found exactly that (the
 quest-item-loss fix moved the bug rather than removing it).
+
+The panel roster is worth keeping by name, and the **MM6 veteran is the single most valuable seat**
+— it produced the harshest and most actionable round-1 review (`critique/panel/veteran.md`, 6/10,
+every finding real). It is now a durable agent definition at `.claude/agents/mm6-veteran.md`, so it
+survives sessions: spawn it with `Agent(subagent_type: 'mm6-veteran')`. Its whole worth is that it
+has no project context — **never brief it on intent, never let it read `src/`, `critique/` or this
+file.** The moment it knows what we meant to build, it starts grading effort instead of result.
+The other seats (first impression, QA, aesthete) are worth promoting to definitions too.
 
 **L5 — Discriminator.** The ship gate, not a critique. Real MM6 screenshots shuffled with ours,
 fresh vision judges labelling real/fake. Ship when accuracy approaches chance. Everything else is
