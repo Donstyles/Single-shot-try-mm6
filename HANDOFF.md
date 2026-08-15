@@ -130,6 +130,90 @@ Reference for measurement only — no asset rips, ever. Style parity, original c
    shipped) shuffled with ours; fresh vision judges label real/fake; iterate until accuracy approaches
    chance. The judges' stated tells drive each next fix wave.
 
+### 5.1 Art production — the bill of materials
+
+Nobody has ever counted the art this game needs, which is why "asset volume" kept being discussed as
+a feeling. Counted from the current source:
+
+| Class | Count | Source | Notes |
+|---|---|---|---|
+| Creature sprite frames | **~336** | foundry | 17 monsters + ~4 NPC kinds × (idle/walk/attack × 5 facings + corpse) |
+| Item icons | 36 | image-gen or hand | one per entry in `ITEMS` |
+| Portraits | ~30 | image-gen | 11 named NPCs + party faces + pain variants |
+| Paperdoll pieces | ~15 | image-gen or foundry | must register to one body rig |
+| Wall textures | 10 now → ~24 | image-gen | target 128px, structured (courses, joints, wear) |
+| Floor / ceiling textures | ~12 | image-gen | tiling, per-level |
+| Sky bands | ~6 | image-gen | one per time bucket |
+| Decor sprites | 14 | foundry | tree, rock, tent, brazier, fountain, shrine, sign, lamp… |
+| Spell sigils + school gems | ~36 | procedural or image-gen | 27 spells, 9 schools |
+| UI ornament | ~30 | image-gen | frame, rosettes, buttons, tabs, crest |
+
+**Roughly 500 discrete assets, ~340 of them foundry frames.** One creature is done. That is the real
+scale of the presentation axis, and it should be planned as a production run — batched, with a
+per-batch review gate — not as an open-ended polish pass.
+
+### 5.2 Which generator makes what
+
+Route by what each tool is actually good at, and do not mix routes within an asset class:
+
+- **Foundry (3D → quantized frames)** — anything needing consistent lighting across many facings and
+  frames: creatures, NPCs, decor props, paperdoll pieces. It is the only route that gives *coherence
+  for free*, because the light rig is fixed and the geometry is the same object seen from angles.
+- **Image generation** — flat, single-view surfaces where a model's eye for material beats a
+  primitive-built mesh: wall and floor textures, portraits, sky, UI ornament.
+- **Procedural (existing `06_art.js` code)** — anything that must animate or vary per-cell: water
+  frames, fire, lightmap glow, the font. Keep it; do not regenerate what already works.
+
+### 5.3 The consistency problem, which is the whole problem
+
+Generating one good texture is easy and proves nothing. Generating four hundred assets that look like
+they came from **one 1998 art department** is the entire difficulty, and it has exactly three levers:
+
+1. **The palette is the great unifier.** Every asset — foundry, generated, procedural — is quantized
+   through `palDither` into the same 256-index ramp structure before it enters the build. This alone
+   removes most style drift, and it is non-negotiable: nothing enters the game as RGB.
+2. **One style anchor per class.** Approve a single reference asset per class first (one wall, one
+   portrait, one icon), commit it, and pass it as the visual reference for every sibling. Never
+   generate a class's assets from independent prompts.
+3. **Batch review, not per-asset review.** Judge a full contact sheet of a class side by side. Drift
+   is invisible one asset at a time and obvious in a grid of twenty. The odd one out gets regenerated,
+   not accepted because it is "good on its own".
+
+Fixed prompt preamble for every generated asset: 1998 pre-rendered CRPG, 256-colour, hard warm key
+light from upper-left, no modern shading, no text, no signature, flat background for masking.
+
+### 5.4 Acceptance criteria — how an asset is allowed into the build
+
+Reject on any of these; regeneration is cheap and drift is not:
+
+- **Palette-legal**: every pixel is a valid index; transparency is index 0 and *only* index 0.
+- **Readable at target size**: creature sprites are judged at their on-screen size at 3–10 cells, not
+  zoomed. If the silhouette does not read at 40px tall, the model is wrong — no texture fixes that.
+- **Silhouette test**: fill the sprite solid black. It must still be identifiable as its creature.
+  This is the single best predictor of whether it reads as MM6.
+- **Lighting agrees**: key from upper-left, matching the rig in `tools/foundry.js`. A generated
+  texture lit from the right will fight every sprite in the frame.
+- **Outlined**: 1px dark outline on sprites (the foundry already does this) — it is what separates
+  1998 pre-rendered from a modern render pasted on a background.
+- **Tiles cleanly**: textures checked as a 3×3 grid, with no seam and no obvious repeat feature.
+
+### 5.5 Storage, determinism, and the size budget — read before generating anything
+
+**Generated art is not deterministic and must never be produced at build time.** Every asset is
+generated once, reviewed, quantized, and **committed to the repo** as baked data. `build.js` only
+embeds what is already on disk. Break this and the build stops being reproducible, the shot list
+stops being comparable between rounds, and the discriminator's measurements become meaningless.
+
+The size budget is real and currently violated in miniature: `dist/index.html` is **241 KB**, while
+`assets/manifest.json` — **one goblin** — is **273 KB** of JSON number arrays. At that rate the ~21
+actors alone would add roughly 5.7 MB to a file meant to load instantly on a phone over mobile data.
+
+So before any bulk foundry run, fix the encoding: RLE the palette bytes, or write indexed PNGs and
+embed those as base64 (the browser decodes them for free). Either is a 4–8× reduction and turns the
+sprite payload into something a phone loads without complaint. Set a hard ceiling — **2 MB for the
+whole single-file build** is a sane target — and check it in a test, so it fails loudly rather than
+being discovered on a phone at the end.
+
 ## 6. Heightfield terrain — the outdoor-parity plan
 
 MM6's outdoor maps (`.odm`) *are* a heightmap: a grid of terrain vertices with per-tile textures, with
@@ -321,10 +405,12 @@ happened here — building on an unverified base, and grading yourself.
 - [ ] `critique/MM6_REFERENCE.md` — measured reference numbers (blocks all art work)
 - [ ] Heightfield terrain + overhead-span primitive (§6)
 - [ ] Terrain reachability test over the generated heightmap
-- [ ] Foundry: 16 remaining creatures + 3 NPC kinds
+- [ ] Sprite encoding + size budget test (see §5.5) — **do this before any bulk foundry run**
+- [ ] Foundry: 16 remaining creatures + 3 NPC kinds + 14 decor props
 - [ ] Manifest integration: base64 in `build.js`, facing-aware sprite selection in `05_engine.js`
 - [ ] Variable building heights + pitched roofs
 - [ ] Painted sky dome; 128px structured textures; MM6 HUD proportions
+- [ ] Style anchors: approve one wall, one portrait, one icon before generating their classes (§5.3)
 - [ ] Image-gen pass for textures/portraits/ornament (needs open network + user's key re-pasted)
 - [ ] Discriminator harness + first measured round
 - [ ] Promote first-impression / QA / aesthete panel seats to `.claude/agents/`
