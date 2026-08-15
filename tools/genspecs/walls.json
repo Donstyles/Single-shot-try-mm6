@@ -1,0 +1,14 @@
+{
+  "class": "wall",
+  "size": 128,
+  "genSize": "1024x1024",
+  "outline": false,
+  "seamless": true,
+  "anchor": "town_plaster",
+  "items": [
+    {"id":"town_plaster","prompt":"seamless tiling wall texture, cream lime plaster over timber frame, weathered, hairline cracks, flat orthographic view, no perspective"},
+    {"id":"town_stone","prompt":"seamless tiling wall texture, coursed grey ashlar blocks with mortar joints, chipped edges, flat orthographic view"},
+    {"id":"crypt_block","prompt":"seamless tiling wall texture, damp dark granite blocks, moss in the joints, pitted surface, flat orthographic view"},
+    {"id":"vault_marble","prompt":"seamless tiling wall texture, veined pale marble panels with a carved banded border, flat orthographic view"}
+  ]
+}

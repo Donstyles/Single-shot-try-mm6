@@ -47,6 +47,7 @@ systems are the part that is done.
 | `src/10_debug.js` | boot, `?debug` overlay, `__game`/`__session` harness |
 | `build.js` | concatenates `src/*.js` in sorted order → `dist/index.html` |
 | `tools/foundry.js`, `tools/creatures.js` | 3D sprite foundry (see §5) |
+| `tools/imagegen.js`, `tools/genspecs/` | image-gen → quantized asset pipeline (**unverified — never reached the API**, see §5.6) |
 | `assets/manifest.json` | foundry output — currently the goblin only |
 | `critique/SHOTLIST.md` | **the canonical shot list.** Every critique round captures exactly these |
 | `critique/cycle1,2/`, `critique/panel,panel2/` | past findings + dispositions |
@@ -214,6 +215,57 @@ embed those as base64 (the browser decodes them for free). Either is a 4–8× r
 sprite payload into something a phone loads without complaint. Set a hard ceiling — **2 MB for the
 whole single-file build** is a sane target — and check it in a test, so it fails loudly rather than
 being discovered on a phone at the end.
+
+### 5.6 Image generation runbook (OpenAI)
+
+Everything here was blocked by network policy during the first run, so **treat it as unverified
+until it has run once.** `tools/imagegen.js` implements this flow and has never successfully reached
+the API; expect to debug it, and verify request/response shapes against current OpenAI docs rather
+than trusting this file.
+
+**The key.** The user supplies it. Rules, in order of importance:
+- Never commit it, never echo it into a log, never put it in an environment variable on the
+  environment config — environment variables are visible to anyone who can open that environment.
+- Store it in the session scratchpad only, `chmod 600`, outside the repo tree.
+- **The scratchpad is per-session.** A new session cannot read the previous session's key — the user
+  must paste it again each time. Say so up front rather than discovering it mid-run.
+- Ask for a **spend-capped, project-scoped key**, and tell the user to revoke it when the run ends.
+
+**The network.** Egress goes through the agent proxy. `api.openai.com` is only reachable if the
+environment's Network access is Full or a Custom allowlist including it, and **that setting applies
+to new sessions only** — an existing session cannot be un-blocked. A `403` on CONNECT is a policy
+denial, not a transient error: do not retry it, do not disable TLS verification, do not unset
+`HTTPS_PROXY`. Node needs the proxy CA (`/root/.ccr/ca-bundle.crt`) via `NODE_EXTRA_CA_CERTS`.
+
+**The call.** `POST https://api.openai.com/v1/images/generations`, `Authorization: Bearer <key>`,
+body `{model:'gpt-image-1', prompt, size, n}`; the response carries base64 image data. For style
+consistency use the **edits** endpoint (`/v1/images/edits`, multipart, with the approved anchor image
+attached) rather than a fresh generation — passing the anchor is what keeps a class of assets from
+drifting, and it is the main reason to prefer this API over describing the style in words each time.
+
+**The pipeline — generation is the first step, not the deliverable:**
+
+1. Generate large (1024²) — models compose better at size than at 128px.
+2. Downsample to the real target with area averaging (128px wall, 64px floor, portrait to its HUD
+   size). Never ask the model for tiny images.
+3. **Quantize through `palDither`** into palette indices. Nothing enters the build as RGB.
+4. Apply class rules: 1px dark outline for sprites, seam repair for tiles.
+5. **Contact-sheet the whole class and review it as a grid**, not one at a time.
+6. Commit the quantized result. The raw RGB generation is a build input, not an asset — keep it out
+   of `dist/`, and keep generation out of `build.js` entirely, since it is non-deterministic.
+
+**Tiling is the known weak point.** Image models do not produce seamless tiles. Either wrap the image
+by half in both axes and inpaint the visible seam cross via the edits endpoint, or generate
+deliberately flat, evenly-lit material and make it seamless procedurally afterwards. Check every
+texture as a 3×3 grid before accepting it — a seam that is invisible alone is a grid of scars on a
+wall.
+
+**Cost.** Roughly 150 of the ~500 assets are image-gen candidates; budget a 3× reject rate, so plan
+for ~450 generations. Check current per-image pricing before starting and give the user a number
+before spending their money, not after.
+
+**Never upload reference material you do not own.** Real MM6 screenshots are for measurement and for
+the discriminator only — they are not prompt inputs and never go to a third-party API.
 
 ## 6. Heightfield terrain — the outdoor-parity plan
 
@@ -412,6 +464,7 @@ happened here — building on an unverified base, and grading yourself.
 - [ ] Variable building heights + pitched roofs
 - [ ] Painted sky dome; 128px structured textures; MM6 HUD proportions
 - [ ] Style anchors: approve one wall, one portrait, one icon before generating their classes (§5.3)
+- [ ] Verify `tools/imagegen.js` against the live API (first successful call is the milestone)
 - [ ] Image-gen pass for textures/portraits/ornament (needs open network + user's key re-pasted)
 - [ ] Discriminator harness + first measured round
 - [ ] Promote first-impression / QA / aesthete panel seats to `.claude/agents/`

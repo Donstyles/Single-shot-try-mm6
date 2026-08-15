@@ -14,8 +14,12 @@ specific gap.
 ## Before you paste it
 
 - **Environment network access must be set to Full or a Custom allowlist** if you want image
-  generation. The default policy blocks everything except package registries, and the setting only
-  applies to *new* sessions. Decide before starting.
+  generation. The default policy blocks everything except package registries, a `403` on CONNECT is a
+  policy denial rather than a transient error, and the setting applies to *new* sessions only — an
+  already-running session cannot be unblocked. Decide before starting.
+- **Have the API key ready to paste, and expect to paste it again in every later session.** It is
+  stored in the session scratchpad, which does not outlive the session. Use a spend-capped key and
+  revoke it when the run ends.
 - **Budget is the binding constraint, not capability.** A run like this consumes an enormous amount
   of output. Check your remaining allowance first; the prompt is written to checkpoint and hand off
   cleanly when it runs out, but it cannot manufacture budget.
@@ -135,6 +139,14 @@ Everything between the rules below is the prompt. Paste it verbatim.
 >   zoomed; passes the silhouette test (fill it solid black — it must still be identifiable); lit
 >   from the same direction as everything else; 1px dark outline on sprites; textures seamless across
 >   a 3×3 tiling.
+> - **If you use an image-generation API**, the key comes from the user and never touches the repo,
+>   the logs, or an environment variable — a scratchpad file with tight permissions only, re-supplied
+>   each session. Ask for a spend-capped key, give a cost estimate *before* spending, and tell them to
+>   revoke it when you finish. Generate large and downsample; never ask for tiny images. Pass an
+>   approved anchor image on every sibling request rather than re-describing the style in words —
+>   that is what stops a class from drifting. Quantize every result through the palette, commit the
+>   quantized data, and keep generation out of the build: it is not deterministic and the build must
+>   be. Never send reference material you do not own to a third-party API.
 > - **Set a hard size ceiling for the single file and test it.** Raw index arrays are enormous —
 >   encode sprites (run-length or indexed PNG embedded as base64) before any bulk render run, not
 >   after. Discovering the payload problem on a phone at the end costs the whole art pass.
