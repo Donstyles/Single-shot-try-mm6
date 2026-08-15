@@ -75,6 +75,122 @@ placement gets written twice.
 with parallax. ~10% of the work for a real fraction of the impact, and it's worth having anyway —
 real terrain should still have a painted far range behind it.
 
+### Terrain features, and the one that breaks the model
+
+A heightfield is a *function* `h(x,y)` — one surface height per point. Six of the seven features
+below fall straight out of that. **Bridges do not**: a bridge deck and the ravine floor beneath it
+are two surfaces over the same `(x,y)`, which a single-valued heightmap cannot express. Decide this
+before writing the march loop, not after.
+
+- **Bridges** — add an optional second layer: `deckH[]` + `deckSolid[]` per cell (mostly empty). The
+  column march tests the deck as a thin extruded slab *in addition to* the terrain sample, so you see
+  the gap below it. Collision picks deck-vs-ground by which surface the party is nearer to from
+  above. Keeps the heightmap single-valued and confines multi-surface logic to a few hundred cells.
+  Same mechanism later serves cave mouths, city walls with gate arches, and second-storey walkways.
+- **Ravines / canyons** — carved along a spline with steep walls and a flat floor. Their job is
+  *routing*: they make bridges and fords load-bearing rather than decorative, and they give the
+  vertical drama that makes a screenshot read as MM6 rather than as a lawn. Steep sides also let the
+  slope limit do the fencing.
+- **Rivers** — carve a channel along a spline, then a water surface per segment. On a slope a river
+  needs stepped pools (each with its own flat water level) rather than one tilted plane; the steps
+  read as small falls. Reuse the existing animated water tiles (`Art.tick`) on the water plane, plus
+  a foam band where `|h − waterLevel|` is small.
+- **Oceans** — a global sea level plus the same water plane. The requirement is that the *map edge is
+  never visible*: sea has to run out into the distance haze. Vintavia is already a coast, so the
+  shoreline is the first place to prove the water/foam/haze stack.
+- **Mountains** — ridged fbm above a snow-line ramp. Their real function is to bound the playable
+  valley with terrain instead of an invisible wall you bump into, which is a large perceived-quality
+  win on its own. Mostly seen at distance, so they lean on draw distance (below).
+- **Hills** — the fbm base layer. Roads grade over them; camps and clearings get local flattening.
+- **Draw distance** — mountains are only worth having if the march reaches them. Grow the step size
+  with distance (standard voxel-space trick): ~96 steps then covers ~200 cells, with far detail
+  collapsing into haze exactly where we want it to anyway.
+
+Author all of it from splines + noise under `RNG.world('terrain')` — never from a generated image, or
+determinism dies. Build a top-down debug heightmap view early (`?debug`): it is the artifact the
+critique loop reads to catch unreachable pockets and silly landforms before they cost render time.
+
+## Meta-production — the loops
+
+The systems in this game were not the hard part. The hard part was *knowing what was actually wrong*
+while being the same entity that built it. Everything below is machinery for that. It is the most
+reusable thing in this repo — more reusable than any of the game code.
+
+### The five loops, and what each one is actually for
+
+**L1 — Build fan-out.** Parallel agents writing code. The only rule that matters: **one owner per
+file.** Two agents editing one file is not a merge conflict, it is silent semantic corruption — one
+of them re-implements a rule the other already owns. ARCHITECTURE.md exists to make ownership
+declarable ("pure rules modules; glue never re-implements formulas"). Fan-out on *files*, never on
+*features*, because features cut across files. When a feature genuinely spans owners, one agent
+writes the rule and the others call it.
+
+**L2 — State-dump playtest.** The cheapest and most under-rated loop. `window.__game` drives the sim
+(`teleport/gotoMap/walk/press/tap/give/gold/setTime/save/load`) and `window.__session` dumps state.
+The loop is: script a play sequence → dump → assert invariants → repeat. Three variants earned their
+keep:
+- *Invariant assertions*: run a sequence, then check things that must always hold (hp within bounds,
+  no item in two places, quest flags monotonic).
+- *Conservation probes*: the reported "item duplication bug" was disproved by a 400-operation probe
+  that counted every item in the world before and after. A probe is how you refuse to chase a ghost.
+- *Determinism diffs*: run the same seeded sequence twice, diff the dumps. Any difference is a bug
+  you have not found yet. This is why the RNG registry is serialized into saves.
+
+**L3 — Screenshot critique.** Vision agents reading captures. This only produces signal if the shots
+are *the same shots every round*: a fixed shot list — canonical camera positions, fixed seed, fixed
+clock time — captured from a **pinned build**. Same shots each round is what separates "we improved"
+from "we got a luckier frame". Round N's captures live beside round N's findings; nothing is ever
+overwritten.
+
+**L4 — Fresh-eyes panel.** Zero-context agents given the built artifact and a role (veteran of the
+genre / first-time impression / QA / aesthete), who have not seen the code or the plan. Context is
+the enemy here: an agent that watched the thing get built will grade the effort, not the result. The
+panel is why the round-1 veteran score was a 6 while the builder's self-assessment was much higher.
+Run at least two rounds — round 2 finds what round 1's fixes broke, and it found exactly that (the
+quest-item-loss fix moved the bug rather than removing it).
+
+**L5 — Discriminator.** The ship gate, not a critique. Real MM6 screenshots shuffled with ours,
+fresh vision judges labelling real/fake. Ship when accuracy approaches chance. Everything else is
+opinion; this is a measurement. **Build it before making more art** — without it, "better" is a
+feeling and every fix wave is a guess.
+
+### Invariants every loop needs
+
+1. **Pin the artifact.** Never rebuild `dist/` while judges are mid-run. Findings that reference a
+   build that no longer exists cannot be verified or dismissed.
+2. **The grader must not be the builder.** No self-grading of subjective quality, ever. The builder
+   can grade *tests*; it cannot grade *wow*.
+3. **Every finding gets a written disposition.** Accepted-and-fixed, rejected-with-reason, or
+   deferred-with-reason — see `critique/panel/round1_disposition.md`. Undisposed findings quietly
+   evaporate, and the same one comes back three rounds later.
+4. **Verify the fix on screen, not in the diff.** A fix that only exists in code review is a claim.
+5. **Ask for methods, not adjectives.** "Make it wow" produced nothing. "Capture these 6 shots, name
+   the three specific tells that break the illusion, ranked" produced the entire fix list.
+6. **Agents are wrong sometimes.** Two of the loudest reported bugs (item dupe, poison laundering)
+   needed probes before fixing — one was real, one was not. Reproduce before you repair.
+
+### Anti-patterns, paid for in full
+
+- **`.catch(()=>{})` in a test is a lie.** The crypt-portal softlock — a hard game-breaker — was
+  invisible for hours because an E2E test swallowed the error it was there to catch. Ban silent
+  catches and tolerance windows in tests; a test that can't fail isn't one.
+- **Grading in the same context that built.** Produces inflated scores and defensive dispositions.
+- **Findings without a shot list.** Unreproducible art criticism cannot be closed.
+- **Unbounded loops.** Each round costs real budget; see below.
+
+### Loop economics
+
+Budget is a design constraint, not an afterthought — this project ran into a usage ceiling at 96%
+with work still queued, which is *why* HANDOFF.md exists. So: decide the round count before starting,
+checkpoint (commit + push) at every round boundary, and keep the continuation plan current enough
+that a fresh session loses nothing but context. Prefer many small verifiable rounds to one heroic
+pass; a round that ends without a commit is a round that may not have happened.
+
+### What to build first next time
+
+Order matters more than effort. Build the harness (L2) before the systems, the shot list and the
+discriminator (L3/L5) before the art, and the panel (L4) before believing anything is done.
+
 ## Constraints & scars (don't relearn these)
 
 - Environment egress: default-Trusted walls everything but package registries. api.openai.com needs
