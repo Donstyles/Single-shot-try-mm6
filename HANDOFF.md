@@ -51,6 +51,7 @@ systems are the part that is done.
 | `critique/SHOTLIST.md` | **the canonical shot list.** Every critique round captures exactly these |
 | `critique/cycle1,2/`, `critique/panel,panel2/` | past findings + dispositions |
 | `.claude/agents/mm6-veteran.md` | the durable veteran reviewer agent |
+| `SINGLE_SHOT_V2.md` | the v2 single-shot prompt for a fresh, context-free agent, plus its design rationale |
 
 **Commands**
 
