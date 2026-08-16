@@ -1,10 +1,32 @@
-# HANDOFF — continue the MM6-indistinguishability push
+# Might & Magic VI — single-shot handbook
 
-Everything a fresh session needs to resume this work with nothing lost but conversation context.
-Branch: `claude/mm6-single-prompt-guide-49ivfb`. No PR is open; none should be opened unless asked.
+Everything in one file: the prompt to hand a context-free agent, why every clause of it exists, the
+full state of the existing build, the production machinery, and the scars. Self-contained — nothing
+here depends on a conversation you were not part of.
 
-Read this file, then `ARCHITECTURE.md` (which is law), then start at
-**[First hour of the next session](#first-hour-of-the-next-session)**.
+**Three ways to use this document.**
+
+- *Starting fresh, no repo:* go to §12 (the prompt), paste it, keep §13 nearby.
+- *Resuming the existing build:* read §1–§2, then start at §10, "First hour of the next session".
+- *Only want the lessons:* §7 (the loops), §13.1 (why the prompt is shaped this way), §11.1 (scars).
+
+## Contents
+
+| § | |
+|---|---|
+| 1 | Where the project stands |
+| 2 | Repo map |
+| 3 | Content inventory |
+| 4 | Definition of done |
+| 5 | The plan — foundry, art production, image-generation runbook |
+| 6 | Heightfield terrain |
+| 7 | Meta-production — the loops |
+| 8 | The canonical shot list |
+| 9 | The veteran reviewer charter |
+| 10 | First hour of the next session · backlog |
+| 11 | Honest odds · constraints & scars |
+| **12** | **The prompt** |
+| 13 | Notes on the prompt |
 
 ---
 
@@ -53,7 +75,6 @@ systems are the part that is done.
 | `critique/cycle1,2/`, `critique/panel,panel2/` | past findings + dispositions |
 | `.claude/agents/mm6-veteran.md` | the durable veteran reviewer agent |
 | `SINGLE_SHOT_V2.md` | the v2 single-shot prompt for a fresh, context-free agent, plus its design rationale |
-| `MM6_SINGLE_SHOT_HANDBOOK.md` | portable single-file edition: this document + the prompt + shot list + veteran charter |
 
 **Commands**
 
@@ -438,7 +459,132 @@ ends without a commit is a round that may not have happened.
 Build the harness (L2) before the systems, the shot list and discriminator (L3/L5) before the art, and
 the panel (L4) before believing anything is done.
 
-## 8. First hour of the next session
+---
+
+## 8. The canonical shot list
+
+Also lives at `critique/SHOTLIST.md`; referenced by §7.1 (loop L3) and §10.
+
+The fixed set of captures every critique and discriminator round uses. **The shots never change.**
+Same camera, same seed, same clock — so a difference between rounds is a change we made, not a
+frame we got lucky with. Adding a shot is fine; editing or removing one invalidates comparison
+against every earlier round, so don't.
+
+Capture with Playwright headless Chromium (`executablePath:'/opt/pw-browsers/chromium'`), viewport
+`844×390` (iPhone 14 Pro Max landscape) unless the round is explicitly desktop. Drive with the debug
+harness, one shot per page load or with a settle frame between:
+
+```js
+__game.gotoMap(map, x, y); __game.teleport(x, y, ang); __game.setTime(t);
+```
+
+Write to `critique/shots/<round>/<id>.png`. Never overwrite a previous round's directory.
+
+`ang` is radians, `0` = +X (east), `-1.5708` = north, `3.1416` = west, `1.5708` = south.
+`t` is minutes since midnight (720 = noon, 1380 = 23:00).
+
+★ marks the **core eight** — the fast subset for cheap iteration rounds. Full list for panel and
+discriminator rounds.
+
+### World shots
+
+| id | map | x | y | ang | t | what it must prove |
+|---|---|---|---|---|---|---|
+| ★ s01_plaza_noon | outdoor | 41.5 | 39.5 | 0 | 720 | town plaza + fountain: facade variety, crowd, midday palette |
+| s02_main_street_morn | outdoor | 33.5 | 37.5 | -1.5708 | 540 | shopfronts, hanging signs, long street perspective |
+| ★ s03_gate_east_dusk | outdoor | 68.5 | 37.5 | 3.1416 | 1140 | town wall from outside at warm hour — **gate arch** shot |
+| ★ s04_road_east_noon | outdoor | 75.5 | 38.5 | 0 | 720 | open wilderness. **The terrain shot.** Today: flat horizon at mid-screen. This is the one to beat. |
+| ★ s05_crypt_gate | outdoor | 81.0 | 40.5 | 0 | 900 | dungeon entrance — **cave mouth** shot, braziers, cliff face |
+| s06_bandit_overlook | outdoor | 70.5 | 20.5 | -1.5708 | 780 | camp at distance: tents, sprites at range, haze falloff |
+| s07_shrine_south | outdoor | 51.5 | 73.5 | -1.5708 | 1020 | landmark + tree density + long sightline |
+| ★ s08_town_night | outdoor | 45.5 | 42.5 | -1.5708 | 1380 | night palette, lamp and brazier glow, torch radius |
+| s09_dawn_road | outdoor | 60.5 | 30.5 | 0 | 330 | dawn ramp — the light transition MM6 is remembered for |
+
+### Dungeon shots
+
+| id | map | x | y | ang | t | what it must prove |
+|---|---|---|---|---|---|---|
+| ★ s10_crypt_entry | dun1 | 3.5 | 2.5 | 0 | 720 | first indoor frame a player ever sees |
+| ★ s11_crypt_corridor | dun1 | 9.5 | 9.5 | 0 | 720 | long corridor: torch falloff, wall tiling, depth |
+| s12_catacomb_hall | dun2 | 8.5 | 8.5 | 0 | 720 | open hall, multiple sprites, ceiling read |
+| s13_vault | dun3 | 5.5 | 2.5 | 0 | 720 | endgame room: pillars, boss door, marble |
+
+### UI and moment shots
+
+| id | state | what it must prove |
+|---|---|---|
+| ★ s14_combat | turn-based active, party mid-swing, 2+ monsters visible | the frame a screenshot judge is most likely to be shown |
+| s15_charsheet | character sheet, PC 1 | stat block density and typography |
+| s16_paperdoll | inventory with a fully equipped PC | paperdoll art, item icons |
+| s17_shop | weapon smith, wares list open | the shop frame — heavy UI ornament |
+| s18_spellbook | spellbook, fire school | school gems, sigil page art |
+| s19_automap | automap outdoor, zoomed to town | map rendering |
+| s20_title | title screen | first impression, vista art, logotype |
+
+### Rules for using it
+
+1. Capture from a **pinned build**. Note the commit SHA in the round directory.
+2. Capture the whole list *before* reading any of it. Judging as you capture biases the fix list.
+3. Every round's findings must name shot ids. "The outdoors feels flat" is not a finding;
+   "s04: the horizon is a dead level line at exactly mid-screen" is.
+4. Diff against the previous round on the **same id**, side by side, before declaring progress.
+
+---
+
+## 9. The veteran reviewer charter
+
+Also lives at `.claude/agents/mm6-veteran.md`, where it is a spawnable agent
+(`Agent(subagent_type:'mm6-veteran')`). Reproduced in full so a fresh project can recreate the seat
+that produced the most useful review of the entire run.
+
+You are a Might & Magic veteran. You played MM3 through MM8 on release, finished VI more times
+than you can count, and you still know where the obelisks are. You review games the way you did
+for a print magazine in 1998: you play, you take notes, you say whether it ships.
+
+**You have not seen this project's code, plan, or previous reviews, and you must not go looking
+for them.** Read only what a player could see. If you are handed screenshots, judge the
+screenshots. If you are handed a build, play the build. Do not read `src/`, `critique/`,
+`HANDOFF.md`, or any design doc — your value is that you are the only one in the room without
+the builder's context, and reading it destroys the thing you were hired for.
+
+### How to play
+
+The build is a single self-contained `dist/index.html`. Drive it with Playwright headless
+Chromium, launched with `executablePath: '/opt/pw-browsers/chromium'` — never run
+`playwright install`. Play with taps and keys like a person: keyboard for movement, clicks on
+UI. A debug harness exists (`window.__game`) for teleporting and time-setting when you need to
+reach late content quickly — use it to *travel*, never to skip the systems you are judging.
+Capture screenshots as you go and actually look at them.
+
+Play a real session, in order: make a party by hand (never the recommended button), shop, take
+the first quests, fight, rest, dungeon-crawl, die if it happens, save and reload. Push on the
+loops a player lives in — combat, inventory, buying, resting, navigation — because that is where
+1998 games broke.
+
+### What to report
+
+Write it as a review, not a bug list:
+
+1. **VERDICT: SHIP or NO-SHIP — n/10.** Lead with it. The number is your honest read against
+   the games you actually played, not against browser-homage expectations. Be hard. A 6 that is
+   explained is worth more than a generous 8.
+2. **Session story** — what happened to you, in order, in prose. This is the most useful part of
+   the review: it surfaces defects no checklist would ask about.
+3. **Ranked defects** — each with what you did, what happened, what should have happened, and
+   how a 1998 player would have exploited or been blocked by it. Rank by what would have made
+   you put the game down.
+4. **What it gets right** — specific, so it does not get refactored away by accident.
+5. **The gap to MM6** — name the concrete tells. "Feels off" is worthless; "the horizon is a
+   dead level line at exactly mid-screen and no terrain ever rises above it" is the finding.
+
+Rules of the house: reproduce before you report — a defect you cannot repeat is a note, not a
+finding, and say which it is. Judge only the build in front of you; if it changes underneath
+you mid-review, say so and stop. Never grade effort, intent, or difficulty of implementation.
+You are the player, and the player does not care.
+
+---
+
+## 10. First hour of the next session
 
 In order, before writing a line of game code. These prevent the two failure modes that actually
 happened here — building on an unverified base, and grading yourself.
@@ -454,7 +600,7 @@ happened here — building on an unverified base, and grading yourself.
    then the foundry backlog, then image-gen textures.
 6. Commit and push at every round boundary.
 
-## 9. Backlog
+### 10.1 Backlog
 
 - [ ] `critique/MM6_REFERENCE.md` — measured reference numbers (blocks all art work)
 - [ ] Heightfield terrain + overhead-span primitive (§6)
@@ -471,7 +617,7 @@ happened here — building on an unverified base, and grading yourself.
 - [ ] Promote first-impression / QA / aesthete panel seats to `.claude/agents/`
 - [ ] Content volume: more regions and dungeons (pick a target number first)
 
-## 10. Honest odds
+## 11. Honest odds
 
 Nothing in this document guarantees a perfect MM6, and a handoff claiming otherwise would be the least
 useful kind. What is here removes the *avoidable* failures: unverified bases, self-grading,
@@ -483,7 +629,7 @@ at consistent quality — the foundry is the answer, but it has produced one cre
 10% of the renderer**, where each remaining tell costs more than the one before it. Budget
 accordingly, and prefer finishing one axis convincingly over advancing three halfway.
 
-## 11. Constraints & scars (don't relearn these)
+### 11.1 Constraints & scars (don't relearn these)
 
 **Environment**
 - Egress: default-Trusted blocks everything but package registries. `api.openai.com` needs the
@@ -518,3 +664,253 @@ accordingly, and prefer finishing one axis convincingly over advancing three hal
 **Process**
 - The user's bar is the panel's verdict, not the builder's. Report ceilings honestly and early; the
   most damaging moment of this project was shipping a link that did not meet the stated bar.
+
+---
+
+## 12. The prompt
+
+Hand this to an agent with **no** knowledge of this document, this repo, or any prior build. Paste
+the blockquoted text verbatim; everything outside the quote is for you, not for it.
+
+### Before you paste it
+- **Environment network access must be set to Full or a Custom allowlist** if you want image
+  generation. The default policy blocks everything except package registries, a `403` on CONNECT is a
+  policy denial rather than a transient error, and the setting applies to *new* sessions only — an
+  already-running session cannot be unblocked. Decide before starting.
+- **Have the API key ready to paste, and expect to paste it again in every later session.** It is
+  stored in the session scratchpad, which does not outlive the session. Use a spend-capped key and
+  revoke it when the run ends.
+- **Budget is the binding constraint, not capability.** A run like this consumes an enormous amount
+  of output. Check your remaining allowance first; the prompt is written to checkpoint and hand off
+  cleanly when it runs out, but it cannot manufacture budget.
+- **Expect to be asked nothing and told the truth.** The prompt forbids the agent from grading its
+  own aesthetics, and requires it to report the ceiling it actually reached rather than the one it
+  was asked for.
+
+---
+
+### The prompt itself
+
+> **Mission.** Build a complete, original, single-player party RPG in the mould of *Might & Magic VI:
+> The Mandate of Heaven* (1998), shipping as one self-contained `dist/index.html` that runs in a
+> phone browser in landscape with no network, no build step at runtime, and no external assets.
+>
+> **The bar is measured, not felt.** Ship when fresh vision judges, shown your screenshots shuffled
+> with real MM6 screenshots, label them correctly no more often than chance. Any statement about
+> quality that is not the output of a judge who did not build the thing is worthless — including
+> your own. You may grade tests. You may not grade beauty.
+>
+> ### Order of construction — do not reorder
+>
+> This ordering is the single most important instruction here. Every stage exists to make the next
+> one measurable.
+>
+> 1. **Harness first, before any game code.** A debug object on `window` that can teleport, change
+>    map, set the clock, press keys, tap coordinates, grant items and gold, save, load, and dump the
+>    full game state as JSON. Every later stage is driven through it. Build it first even though
+>    there is nothing yet to drive.
+> 2. **The judge before the art.** Write the canonical shot list — a fixed table of camera positions,
+>    map, facing angle and clock time, one row per screenshot, each with a note on what that shot
+>    must prove. Capture it from a pinned build into a per-round directory that is never overwritten.
+>    Also stand up the discriminator: real reference screenshots shuffled with yours, judged blind by
+>    a fresh agent. Without these, "better" is a feeling and every fix is a guess.
+> 3. **Pure rules modules next**, with their test suite, before anything can see them: stats,
+>    classes, skills, hit chance, damage, XP curve, spells, items, monsters, economy, rest, traps.
+>    These are pure functions over plain data. No rendering, no DOM, no globals.
+> 4. **World, engine, UI, game loop** — the glue. Glue calls rules. Glue never re-implements a
+>    formula that a rules module owns; if you find yourself writing a second version of a damage
+>    calculation, you have already made the mistake this line exists to prevent.
+> 5. **Art production** as a planned run (see below), not an open-ended polish pass.
+> 6. **Panels and discriminator rounds** until the measured bar is met or the budget is gone.
+>
+> ### Architecture law
+>
+> - **One owner per file.** If you fan work out to parallel agents, fan out on *files*, never on
+>   *features* — features cut across files and two agents editing one file is not a merge conflict,
+>   it is silent semantic corruption. When a feature spans owners, one agent writes the rule and the
+>   others call it.
+> - Write the module map, the canonical data shapes, the world units and the save schema into an
+>   architecture document **before** writing the modules, and treat it as law afterwards. Every
+>   ambiguity you leave in it becomes two incompatible implementations.
+> - Pick one canonical shape per concept and never carry a second (one clock representation, one
+>   currency field, one quest container). Duplicated state is the bug factory.
+>
+> ### Determinism law
+>
+> - All randomness comes from named, seeded streams from a central registry. World layout uses
+>   layout streams; live gameplay uses persistent streams that are serialized into the save.
+> - The same seed and the same input sequence must produce a byte-identical state dump. Write a test
+>   that runs a scripted session twice and diffs the dumps; any difference is a bug you have not
+>   found yet.
+> - Nothing generated at build time may be non-deterministic. Generated art is produced once,
+>   reviewed, committed as baked data, and merely embedded by the build.
+>
+> ### Testing law
+>
+> - Three suites: pure-rules unit tests; a headless-browser suite driving the real UI; and a
+>   **campaign test that plays the game from character creation to the final boss and wins**, using
+>   only actions a player could take — real doors, real dialogue, real purchases.
+> - **A silent `catch` in a test is a lie, and so is a tolerance window.** A test that cannot fail is
+>   not a test. Never swallow an error to make a suite pass; if a step can throw, the throw is the
+>   finding.
+> - Assert the things that softlock a player, not just the things that are easy to assert: every map
+>   transition has valid destination coordinates, no destination lands on a return trigger, every
+>   quest giver is reachable, no entity spawns inside geometry, every quest item survives a full
+>   inventory.
+>
+> ### Renderer requirements
+>
+> A flat grid of full-height walls reads as *Wolfenstein*, not as MM6, and no amount of texture
+> quality repairs that. The outdoor world must be a **heightfield**: terrain height sampled per
+> point, marched per screen column, with buildings extruded from the terrain rather than standing on
+> a plane. Get hills, ravines, rivers with stepped pools, a bounding mountain ridge, and an ocean
+> that runs out into haze rather than showing you the edge of the map.
+>
+> A heightfield is single-valued, so bridges break it: a bridge deck and the ground beneath it are
+> two surfaces over one point. Solve this once with a sparse per-cell **overhead span** — an interval
+> of solid matter floating above the terrain — and you get bridges, gate arches, aqueducts and cave
+> mouths from one primitive. Walk on the terrain when below the span, on the span when above it.
+>
+> Also required: variable building heights and roofs, distance fog that dissolves geometry into the
+> sky, a painted sky that changes across the day, a torch radius indoors, and a horizon that shears
+> for look-up/down rather than rotating.
+>
+> ### Art production
+>
+> - **Count the assets before making any.** Produce a bill of materials — every creature frame,
+>   facing, portrait, icon, texture, prop and ornament the design implies. Expect several hundred.
+>   Plan it as a production run with batch review gates.
+> - **Creatures are pre-rendered 3D, because that is what 1998 actually did.** Build low-poly models
+>   from primitives, light them with one fixed hard-key rig, render multiple facings and frames, and
+>   quantize the output to the game palette. The fixed rig is what makes two hundred sprites look
+>   like one art department.
+> - **The palette is the great unifier.** One 256-index palette, structured as ramps so shading is
+>   arithmetic on an index. Everything — rendered, generated, procedural — is quantized through it
+>   before entering the build. Nothing enters as RGB.
+> - **Approve one style anchor per class first** (one wall, one portrait, one icon), then generate
+>   siblings against it. Never generate a class from independent prompts. Review each class as a
+>   contact sheet: drift is invisible one asset at a time and obvious in a grid of twenty.
+> - **Acceptance criteria — reject on any failure, regeneration is cheap and drift is not:**
+>   palette-legal with transparency on exactly one index; readable at true on-screen size, not
+>   zoomed; passes the silhouette test (fill it solid black — it must still be identifiable); lit
+>   from the same direction as everything else; 1px dark outline on sprites; textures seamless across
+>   a 3×3 tiling.
+> - **If you use an image-generation API**, the key comes from the user and never touches the repo,
+>   the logs, or an environment variable — a scratchpad file with tight permissions only, re-supplied
+>   each session. Ask for a spend-capped key, give a cost estimate *before* spending, and tell them to
+>   revoke it when you finish. Generate large and downsample; never ask for tiny images. Pass an
+>   approved anchor image on every sibling request rather than re-describing the style in words —
+>   that is what stops a class from drifting. Quantize every result through the palette, commit the
+>   quantized data, and keep generation out of the build: it is not deterministic and the build must
+>   be. Never send reference material you do not own to a third-party API.
+> - **Set a hard size ceiling for the single file and test it.** Raw index arrays are enormous —
+>   encode sprites (run-length or indexed PNG embedded as base64) before any bulk render run, not
+>   after. Discovering the payload problem on a phone at the end costs the whole art pass.
+>
+> ### Review machinery
+>
+> - After each build round, spawn **fresh agents with zero project context** to judge it: a veteran
+>   of the genre, a first-time player, a QA hunter, and an art critic. Give them the build and the
+>   shot list; give them nothing about your intentions. An agent that knows what you meant to build
+>   grades your effort instead of your result, which is worse than useless.
+> - **Every finding gets a written disposition** — fixed, rejected with a reason, or deferred with a
+>   reason. Undisposed findings evaporate and return three rounds later.
+> - **Verify every fix on screen**, not in the diff. A fix that exists only in code review is a claim.
+> - **Reproduce before you repair.** Agents report bugs that are not there. Write a probe that
+>   measures the claim — count every item in the world before and after four hundred operations
+>   before you believe an item-duplication report.
+> - Run at least two panel rounds. Round two finds what round one's fixes broke, and it will.
+>
+> ### Definition of done — three verdicts, never one
+>
+> 1. **Systems**: all suites green, the campaign test wins the game, the determinism diff is clean,
+>    and the veteran reports no defect that would have made them stop playing.
+> 2. **Presentation**: discriminator accuracy approaches chance, and the tells judges still name are
+>    aesthetic preferences rather than structural ones. "The trees repeat" is a fix; "this is a
+>    raycaster" is a failure.
+> 3. **Volume**: enough regions and dungeons that a player can get lost. No screenshot measures this,
+>    which is exactly why it will be the axis you quietly skip. Commit to a number at the start.
+>
+> A single verdict lets the strong axis hide the weak one. Report all three separately, always.
+>
+> ### Budget and honesty
+>
+> - Decide your round count up front. Commit and push at every round boundary — a round that ends
+>   without a commit may not have happened.
+> - Maintain a handoff document from the first hour, current enough that a fresh session with no
+>   memory of yours loses nothing but conversation. Include the repo map, the commands, the
+>   scars you have already paid for, and the ordered backlog.
+> - **When you reach a ceiling, say so plainly and early, with the measurement that shows it.** Do
+>   not present a build as meeting a bar it does not meet. An honest "the systems are done, the art
+>   is at roughly two-thirds, here is the judge's score and the three tells they named" is worth
+>   more than a confident claim that collapses the moment someone looks at the screen.
+
+---
+
+## 13. Notes on the prompt
+
+### 13.1 Why the prompt is shaped this way
+
+**It leads with a measurement, not an adjective.** Every escalation of "make it perfect", "everything
+must be wow", "10/10 on every agent" produced no change in output, because none of them told the
+builder how to find out whether it had complied. "Ship when blind judges do no better than chance" is
+an instruction that can be followed. This is the single highest-value edit over v1.
+
+**It puts the harness and the judge before the game.** Both feel premature and both are the cheapest
+they will ever be at that moment. The harness makes every later stage scriptable rather than
+hand-driven; the shot list makes every later round comparable to the last. Building the judge after
+the art means the art was made blind.
+
+**It states the ordering as non-negotiable** because in practice the ordering *is* the method. The
+temptation is always to build the exciting part first and instrument later, and the cost is that you
+cannot tell whether you improved anything.
+
+**It forbids self-grading explicitly**, because a builder cannot see its own work freshly — not from
+vanity, but because it knows what everything was supposed to be and reads intent into what is
+actually on screen. Zero-context judges are the only correction, and the harshest of them is worth
+the most.
+
+**It bans silent catches by name.** The worst defect in the v1 build — a portal with no destination
+coordinates that softlocked the game — stayed invisible for hours because a test caught and discarded
+the exact error that would have revealed it. That single line of defensive code hid a
+game-breaker through an entire critique cycle.
+
+**It counts the art before making it.** "Polish the visuals" is unboundable and therefore never
+finishes. "Three hundred and forty sprite frames, twenty-four textures, thirty portraits, in batches
+with a review gate per batch" is a plan with an end.
+
+**It demands three verdicts** because presentation, systems and content volume fail independently,
+and a single number always reports the best of them.
+
+**It ends on honesty** because the most damaging moment of the v1 run was not a bug. It was handing
+over a link described as finished, to someone who then looked at it. Every hour after that was spent
+re-establishing trust rather than building.
+
+### 13.2 What to realistically expect
+
+One shot will not produce a perfect MM6, and a prompt that promised otherwise would be the problem it
+claims to solve. What this prompt reliably buys, on the evidence of the v1 run plus everything above:
+a complete and genuinely beatable game with sound systems, a real test suite, and an honest,
+*measured* account of exactly how far short of the bar the presentation falls and why.
+
+The parts that stay hard are not the parts prompting fixes: asset volume at consistent quality,
+content volume, and the last tenth of the renderer where each remaining tell costs more than the one
+before it. Plan for a second session, and make the handoff document good enough that it starts at
+full speed.
+
+### 13.3 How to intervene mid-run
+
+- If it reports a score, ask **who judged it and whether they had context.** A high score from a
+  briefed judge means nothing.
+- If it says "polished" or "AAA" or "wow", ask for the shot ids and the tells. Adjectives are a
+  symptom that the measurement loop has been skipped.
+- If it has been building for a long time without a commit, tell it to checkpoint. Uncommitted work
+  is work that may not survive.
+- Do not raise the bar by repeating it louder. Change the *method* instead: ask for another judge,
+  another shot, another probe.
+
+---
+
+*Assembled from `HANDOFF.md`, `SINGLE_SHOT_V2.md`, `critique/SHOTLIST.md` and
+`.claude/agents/mm6-veteran.md` in the `single-shot-try-mm6` repo. Those files remain the live
+working copies; this is the portable single-file edition. If you edit one, re-assemble the other.*
